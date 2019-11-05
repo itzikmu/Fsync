@@ -8,12 +8,12 @@ public class FolderSync {
 
     private static final String DONE = "DONE";
 
-    public static void sync(Socket sock, String dirName, String fullDirName) throws Exception {
-        ObjectOutputStream oos = new ObjectOutputStream(sock.getOutputStream());
-        oos.writeObject(new String(dirName));
-        oos.flush();
+    public static void sync(Socket sock, ObjectOutputStream oos, ObjectInputStream ois,  String dirName, String fullDirName) throws Exception {
+//        ObjectOutputStream oos = new ObjectOutputStream(sock.getOutputStream());
+//        oos.writeObject(new String(dirName));
+//        oos.flush();
 
-        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
+//        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
 
         System.out.print("Syncing..");
 
@@ -87,9 +87,9 @@ public class FolderSync {
         }
     }
 
-    private static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName) throws Exception {
+    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName) throws Exception {
         Boolean isDone = false;
-        Boolean nAll = false;
+//        Boolean nAll = false;
         while(!isDone) {
             String path = (String) ois.readObject();
 
@@ -109,39 +109,41 @@ public class FolderSync {
             oos.flush();
             if (!newFile.exists()) {
                 ois.readObject();
-                String userInput = null;
-                if (!nAll) {
-                    if (isDirectory) {
-                        System.out.println("CONFLICT! The folder exists on the server but not on this client.");
-                        System.out.println("Would you like to delete the folder on the server (if not, the folder will be copied to this client)?");
-                        System.out.println("No - for all folders. I will create a server copy on this client");
-                    } else {
-                        System.out.println("CONFLICT! The file exists on the server but not on this client.");
-                        System.out.println("Would you like to delete the file on the server (if not, the file will be copied to this client)?");
-                        System.out.println("No - for all files. I will create a server copy on this client");
-                    }
-                    System.out.println("Press: [y] for YES, [n] for NO, [a] for (NO for all files) ");
-                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-                    try {
-                        userInput = br.readLine();
-                    } catch (IOException ioe) {
-                        System.out.println("You have not typed a correct value, no action will be taken.");
-                    }
-                } else // if n to all then just set input to n!
-                    userInput = "n";
-                if (userInput.equalsIgnoreCase("a") || userInput.equalsIgnoreCase("'a'")) {
-                    nAll = true;
-                    userInput = "n";
-                }
-                if (userInput.equalsIgnoreCase("y") || userInput.equalsIgnoreCase("'y'")) {
-                    if (isDirectory) {
-                        oos.writeObject(new Boolean(true)); // reply with yes to delete the server's copy
-                        oos.flush();
-                    } else {
-                        oos.writeObject(new Integer(1));
-                        oos.flush();
-                    }
-                } else if (userInput.equalsIgnoreCase("n") || userInput.equalsIgnoreCase("'n'")) {
+//                String userInput = null;
+//                if (!nAll) {
+//                    if (isDirectory) {
+//                        System.out.println("CONFLICT! The folder exists on the server but not on this client.");
+//                        System.out.println("Would you like to delete the folder on the server (if not, the folder will be copied to this client)?");
+//                        System.out.println("No - for all folders. I will create a server copy on this client");
+//                    } else {
+//                        System.out.println("CONFLICT! The file exists on the server but not on this client.");
+//                        System.out.println("Would you like to delete the file on the server (if not, the file will be copied to this client)?");
+//                        System.out.println("No - for all files. I will create a server copy on this client");
+//                    }
+//                    System.out.println("Press: [y] for YES, [n] for NO, [a] for (NO for all files) ");
+//                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+//                    try {
+//                        userInput = br.readLine();
+//                    } catch (IOException ioe) {
+//                        System.out.println("You have not typed a correct value, no action will be taken.");
+//                    }
+//                } else // if n to all then just set input to n!
+//                    userInput = "n";
+
+//                if (userInput.equalsIgnoreCase("a") || userInput.equalsIgnoreCase("'a'")) {
+//                    nAll = true;
+//                    userInput = "n";
+//                }
+//                if (userInput.equalsIgnoreCase("y") || userInput.equalsIgnoreCase("'y'")) {
+//                    if (isDirectory) {
+//                        oos.writeObject(new Boolean(true)); // reply with yes to delete the server's copy
+//                        oos.flush();
+//                    } else {
+//                        oos.writeObject(new Integer(1));
+//                        oos.flush();
+//                    }
+//                } else if (userInput.equalsIgnoreCase("n") || userInput.equalsIgnoreCase("'n'")) {
+
                     if (isDirectory) {
                         newFile.mkdir();
                         oos.writeObject(new Boolean(false));
@@ -170,6 +172,16 @@ public class FolderSync {
                     }
                 }
             }
+//        }
+    }
+
+    public static void deleteAllDirsAndFiles(File dir) {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i=0; i<children.length; i++) {
+                deleteAllDirsAndFiles(new File(dir, children[i]));
+            }
         }
+        dir.delete();
     }
 }

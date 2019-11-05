@@ -16,6 +16,7 @@ public class Server {
     private static ObjectInputStream ois;
     private static ServerSocket servsock;
     private static String baseDir;
+    private static Boolean baseDirExists;
     static Vector<ClientHandler> ar = new Vector<>();
 
     public static void main(String[] args) throws Exception {
@@ -35,23 +36,25 @@ public class Server {
 
             ois = new ObjectInputStream(sock.getInputStream());
 
-//            baseDir = "serverFolder";
-            baseDir = (String) ois.readObject();
+            baseDir = "C:/Temp/ServerFolder";
+//            baseDir = (String) ois.readObject();
 
             oos = new ObjectOutputStream(sock.getOutputStream());
 
             System.out.println("New client connected! IP: " + sock.getInetAddress().toString() + " Directory: " + baseDir);
 
             File fBaseDir = new File(baseDir);
-            Boolean baseDirExists = fBaseDir.exists();
+            baseDirExists = fBaseDir.exists();
 
             if (!baseDirExists)
                 fBaseDir.mkdir();
 
-            oos.writeObject(new Boolean(baseDirExists));
-            oos.flush();
+//            oos.writeObject(new Boolean(baseDirExists));
+//            oos.flush();
 
             Boolean isClientDone = false;
+
+            syncClient();
 
             while (!isClientDone) {
                 Vector<String> vec = (Vector<String>) ois.readObject();
@@ -111,20 +114,77 @@ public class Server {
                     }
                 }
 
-
-                File baseDirFile = new File(baseDir);
-                if (baseDirExists)
-                    FolderSync.visitAllDirsAndFiles(sock, ois, oos, fBaseDir.getAbsolutePath(), baseDirFile);
-
-                oos.writeObject(new String(DONE));
-                oos.flush();
-                System.out.print("sync finished ...");
-
+                syncClient();
             }
             oos.close();
             ois.close();
             sock.close();
             System.out.println("Client disconnected.");
+        }
+    }
+
+    private static void syncClient() throws Exception {
+        File baseDirFile = new File(baseDir);
+        if (baseDirExists) {
+            //                    FolderSync.visitAllDirsAndFiles(sock, ois, oos, fBaseDir.getAbsolutePath(), baseDirFile);
+            visitAllDirsAndFiles(sock, ois, oos, baseDirFile);
+        }
+
+        oos.writeObject(new String(DONE));
+        oos.flush();
+        System.out.print("sync finished ...");
+    }
+
+    private static void visitAllDirsAndFiles(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir) throws Exception  {
+        oos.writeObject(new String(dir.getAbsolutePath().substring((dir.getAbsolutePath().indexOf(baseDir) + baseDir.length()))));
+        oos.flush();
+
+        ois.readObject();
+
+        Boolean isDirectory = dir.isDirectory();
+        oos.writeObject(new Boolean(isDirectory));
+        oos.flush();
+
+        if (isDirectory) {
+            if (!(Boolean) ois.readObject()) {
+                oos.writeObject(new Boolean(true));
+                oos.flush();
+
+                Boolean delete = (Boolean) ois.readObject();
+
+                if (delete) {
+                    FolderSync.deleteAllDirsAndFiles(dir);
+                    return;
+                } //ELSE DO NOTHING
+            }
+        } else {
+            if (!(Boolean) ois.readObject()) {
+                oos.writeObject(new Boolean(true));
+                oos.flush();
+
+                Integer delete = (Integer) ois.readObject();
+
+                if (delete == 1) {
+                    dir.delete();
+                    return;
+                } else if (delete == 0) {
+                    Transfer.sendFile(sock, ois, oos, dir);
+
+                    ois.readObject();
+
+                    oos.writeObject(new Long(dir.lastModified()));
+                    oos.flush();
+
+                    ois.readObject();
+                } // ELSE DO NOTHING!
+            }
+        }
+
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                visitAllDirsAndFiles(sock, ois, oos, new File(dir, children[i]));
+            }
         }
     }
 

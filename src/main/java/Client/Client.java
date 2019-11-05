@@ -7,7 +7,6 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.file.*;
-import java.util.Scanner;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
@@ -19,10 +18,9 @@ public class Client
 
     public static Socket sock;
 
-    public static void main(String args[]) throws UnknownHostException, IOException
-    {
+    public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
-        String folderName = "TestFolder";
+        String folderName = "C:/Temp/TestFolder";
 
         File folder = new File(folderName);
         if (!folder.exists()) {
@@ -36,16 +34,19 @@ public class Client
 
         // establish the connection
         Socket s = new Socket(ip, ServerPort);
+        ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
+        ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
+
+        FolderSync.getUpdate(s, ois, oos, folder.getAbsolutePath());
 
         try{
-
             System.out.println("in watch");
             // Creates a instance of WatchService.
             WatchService watcher = FileSystems.getDefault().newWatchService();
 
             // Registers the logDir below with a watch service.
-            Path logDir = Paths.get(folderName);
-            logDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+            Path folderDir = Paths.get(folderName);
+            folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
 
             // Monitor the logDir at listen for change notification.
             while (true) {
@@ -62,7 +63,7 @@ public class Client
                     }
 
                     if (ENTRY_CREATE.equals(kind) || ENTRY_MODIFY.equals(kind) || ENTRY_DELETE.equals(kind))
-                        FolderSync.sync(s, folderName, folder.getAbsolutePath());
+                        FolderSync.sync(s, oos, ois, folderName, folder.getAbsolutePath());
                 }
                 key.reset();
             }
