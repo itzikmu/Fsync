@@ -12,40 +12,44 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
-public class Client
-{
+public class Client {
     final static int ServerPort = 1234;
 
-    public static Socket sock;
+    private static final String DONE = "DONE";
+    private static Socket s;
+    private static ObjectOutputStream oos;
+    private static ObjectInputStream ois;
+    private static String baseDir;
+    private static Boolean baseDirExists;
 
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
-        String folderName = "C:/Temp/TestFolder";
+        baseDir = "C:\\Temp\\TestFolder";
+        FolderSync.clientBaseDir = baseDir;
 
-        File folder = new File(folderName);
-        if (!folder.exists()) {
-            folder.mkdir();
+        File baseDirFolder = new File(baseDir);
+        if (!baseDirFolder.exists()) {
+            baseDirFolder.mkdir();
         }
-
-        System.out.println("new folder - test");
 
         // getting localhost ip
         InetAddress ip = InetAddress.getByName("localhost");
 
         // establish the connection
-        Socket s = new Socket(ip, ServerPort);
-        ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
-        ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
+        s = new Socket(ip, ServerPort);
+        oos = new ObjectOutputStream(s.getOutputStream());
+        ois = new ObjectInputStream(s.getInputStream());
 
-        FolderSync.getUpdate(s, ois, oos, folder.getAbsolutePath());
+        FolderSync.getUpdate(s, ois, oos, baseDir, "client");
+//        FolderSync.sync(s, oos, ois, baseDirFolder, true);
 
-        try{
+        try {
             System.out.println("in watch");
             // Creates a instance of WatchService.
             WatchService watcher = FileSystems.getDefault().newWatchService();
 
             // Registers the logDir below with a watch service.
-            Path folderDir = Paths.get(folderName);
+            Path folderDir = Paths.get(baseDir);
             folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
 
             // Monitor the logDir at listen for change notification.
@@ -63,7 +67,8 @@ public class Client
                     }
 
                     if (ENTRY_CREATE.equals(kind) || ENTRY_MODIFY.equals(kind) || ENTRY_DELETE.equals(kind))
-                        FolderSync.sync(s, oos, ois, folderName, folder.getAbsolutePath());
+                        syncServer();
+
                 }
                 key.reset();
             }
@@ -71,7 +76,16 @@ public class Client
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
 
+    private static void syncServer() throws Exception {
+        File baseDirFolder = new File(baseDir);
+        FolderSync.visitAllDirsAndFiles(s, ois, oos, baseDirFolder, true);
+
+        oos.writeObject(new String(DONE));
+        oos.flush();
+        System.out.println("sync finished ...");
+    }
 
 //        // sendMessage thread
 //        Thread sendMessage = new Thread(new Runnable()
@@ -114,6 +128,5 @@ public class Client
 //
 //        sendMessage.start();
 //        readMessage.start();
-
-    }
+//    )
 }
