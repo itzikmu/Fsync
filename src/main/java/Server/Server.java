@@ -19,7 +19,6 @@ public class Server {
     static Vector<ClientHandler> ar = new Vector<>();
 
     public static void main(String[] args) throws Exception {
-
         startServer();
     }
 
