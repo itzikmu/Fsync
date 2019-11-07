@@ -40,11 +40,11 @@ public class Client {
         oos = new ObjectOutputStream(s.getOutputStream());
         ois = new ObjectInputStream(s.getInputStream());
 
-        FolderSync.getUpdate(s, ois, oos, baseDir, "client");
-//        FolderSync.sync(s, oos, ois, baseDirFolder, true);
+        FolderSync.getUpdate(s, ois, oos, baseDir);
 
         try {
-            System.out.println("in watch");
+//            System.out.println("in watch");
+
             // Creates a instance of WatchService.
             WatchService watcher = FileSystems.getDefault().newWatchService();
 

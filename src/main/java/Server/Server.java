@@ -51,12 +51,11 @@ public class Server {
         syncClient();
 
         while (true) {
-            System.out.println("SERVER: FolderSync.getUpdate(sock, ois, oos, baseDir");
-            FolderSync.getUpdate(sock, ois, oos, baseDir, "server");
+            System.out.println("Waiting for Client update");
+            FolderSync.getUpdate(sock, ois, oos, baseDir);
         }
 
 //            while (!isClientDone) {
-//                ois.readObject(); ///??????????? howwww!?!?!?!?
 //                syncClient();
 //            }
 //            oos.close();

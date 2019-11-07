@@ -22,43 +22,38 @@ public class FolderSync {
             ois.readObject(); // other side get the dir name
 
             Boolean isDirectory = dir.isDirectory();
-            System.out.println(": sending true 45");
             oos.writeObject(new Boolean(isDirectory)); //Boolean isDirectory
             oos.flush();
 
             if (isDirectory) {
                 if (!(Boolean) ois.readObject()) { // dir NOT exist on the other side
-                    System.out.println(": sending true 51");
-                    oos.writeObject(new Boolean(true));
+                    oos.writeObject(new Boolean(true)); // send ok
                     oos.flush();
 
-                    Boolean delete = (Boolean) ois.readObject();
+//                    Boolean delete = (Boolean) ois.readObject();
 
-                    if (delete) {
-                        FolderSync.deleteAllDirsAndFiles(dir);
-                        return;
-                    } //ELSE DO NOTHING
+//                    if (delete) {
+//                        FolderSync.deleteAllDirsAndFiles(dir);
+//                        return;
+//                    } //ELSE DO NOTHING
                 }
             } else {
                 if (!(Boolean) ois.readObject()) { // File NOT exist on the other side
-                    System.out.println(": sending true 64");
-                    oos.writeObject(new Boolean(true));
+                    oos.writeObject(new Boolean(true)); // ok
                     oos.flush();
 
-                    Integer delete = (Integer) ois.readObject();
+//                    Integer delete = (Integer) ois.readObject(); /// get if need to be delete
+//
+//                    if (delete == 1) {
+//                        dir.delete();
+//                        return;
+//                    } else if (delete == 0) {
+                    Transfer.sendFile(sock, oos, dir);
 
-                    if (delete == 1) {
-                        dir.delete();
-                        return;
-                    } else if (delete == 0) {
-                        Transfer.sendFile(sock, ois, oos, dir);
+                    oos.writeObject(new Long(dir.lastModified()));
+                    oos.flush();
 
-                        ois.readObject();
-
-                        oos.writeObject(new Long(dir.lastModified()));
-                        oos.flush();
-
-                    } // ELSE DO NOTHING!
+//                    } // ELSE DO NOTHING!
                 }
             }
         }
@@ -70,11 +65,10 @@ public class FolderSync {
         }
     }
 
-    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName, String name) throws Exception {
+    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName) throws Exception {
         Boolean isDone = false;
         while (!isDone) {
             Object obj = ois.readObject(); // dir name
-            System.out.println(name + ": getupdate()" + obj.toString());
             String path = (String) obj;
 
             if (path.equals(DONE)) {
@@ -82,39 +76,32 @@ public class FolderSync {
                 System.out.println("getUpdate done");
                 break;
             }
-            System.out.println(name + ": sending true 106");
-            oos.writeObject(new Boolean(true));
+            oos.writeObject(new Boolean(true)); // get the dir name
             oos.flush();
 
             File newFile = new File(fullDirName + path);
-
             Boolean isDirectory = (Boolean) ois.readObject(); //Boolean isDirectory
 
-            System.out.println(name + ": sending true 113");
-            oos.writeObject(new Boolean(newFile.exists()));
+            oos.writeObject(new Boolean(newFile.exists())); // send if folder/file exist
             oos.flush();
             if (!newFile.exists()) {
-                ois.readObject();
+                ois.readObject(); // ok
                 if (isDirectory) {
                     newFile.mkdir();
-                    oos.writeObject(new Boolean(false));
-                    oos.flush();
+//                    oos.writeObject(new Boolean(false));
+//                    oos.flush();
                 } else {
-                    oos.writeObject(new Integer(0));
-                    oos.flush();
-                    Transfer.receiveFile(sock, ois, oos, newFile);
-                    System.out.println(name + ": sending true 127");
-                    oos.writeObject(new Boolean(true));
-                    oos.flush();
+//                    oos.writeObject(new Integer(0)); // not exist, no need to delete
+//                    oos.flush();
+                    Transfer.receiveFile(sock, ois, newFile);
+//                    oos.writeObject(new Boolean(true));
+//                    oos.flush();
 
-                    Long lastModified = (Long) ois.readObject();
+                    obj = ois.readObject(); // dir last modified
+                    Long lastModified = (Long) obj;
                     newFile.setLastModified(lastModified);
-                    System.out.println(name + ": sending true 132");
-                    oos.writeObject(new Boolean(true));
-                    oos.flush();
                 }
             }
-            System.out.println(name + ": File exist 140");
         }
     }
 
