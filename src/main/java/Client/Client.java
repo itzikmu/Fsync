@@ -1,12 +1,14 @@
 package Client;
 
 import Helper.FolderSync;
+import com.sun.nio.file.ExtendedWatchEventModifier;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
@@ -21,6 +23,7 @@ public class Client {
     private static ObjectInputStream ois;
     private static String baseDir;
     private static Boolean baseDirExists;
+    private static WatchService watcher;
 
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
@@ -43,20 +46,26 @@ public class Client {
         FolderSync.getUpdate(s, ois, oos, baseDir);
 
         try {
-//            System.out.println("in watch");
-
             // Creates a instance of WatchService.
-            WatchService watcher = FileSystems.getDefault().newWatchService();
+            watcher = FileSystems.getDefault().newWatchService();
 
             // Registers the logDir below with a watch service.
             Path folderDir = Paths.get(baseDir);
-            folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+//            folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+//            registerRecursive(folderDir);
+
+            folderDir.register(watcher, new WatchEvent.Kind[] {StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY}, ExtendedWatchEventModifier.FILE_TREE);
 
             // Monitor the logDir at listen for change notification.
             while (true) {
                 WatchKey key = watcher.take();
+
                 for (WatchEvent<?> event : key.pollEvents()) {
                     WatchEvent.Kind<?> kind = event.kind();
+
+//                    if (kind == OVERFLOW) {
+//                        continue;
+//                    }
 
                     if (ENTRY_CREATE.equals(kind)) {
                         System.out.println("Entry was created on log dir.");
@@ -86,6 +95,17 @@ public class Client {
         oos.flush();
         System.out.println("sync finished ...");
     }
+
+//    private static void registerRecursive(Path root) throws IOException {
+//        // register all subfolders
+//        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+//            @Override
+//            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+//                dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+//                return FileVisitResult.CONTINUE;
+//            }
+//        });
+//    }
 
 //        // sendMessage thread
 //        Thread sendMessage = new Thread(new Runnable()
