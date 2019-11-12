@@ -21,7 +21,6 @@ import static name.pachler.nio.file.ext.ExtendedWatchEventKind.ENTRY_RENAME_TO;
 public class Client {
     final static int ServerPort = 1234;
 
-    private static final String DONE = "DONE";
     private static Socket s;
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
@@ -73,32 +72,45 @@ public class Client {
             );
 
             // Monitor the logDir at listen for change notification.
+            Path pathRenameFrom = null, pathRenameTo = null;
             while (true) {
                 WatchKey key = watcher.take();
 
                 for (WatchEvent<?> event : key.pollEvents()) {
                     WatchEvent.Kind<?> kind = event.kind();
 
+                    // Retrieve the file name associated with the event
+                    Path fileEntry = (Path) event.context();
+
                     if (kind == ExtendedWatchEventKind.KEY_INVALID) {
                         continue;
                     }
 
                     if (ENTRY_CREATE.equals(kind)) {
-                        System.out.println("Entry was created on log dir.");
+                        System.out.println("Entry " + fileEntry.toString() + " was created on log dir.");
+
                     } else if (ENTRY_MODIFY.equals(kind)) {
-                        System.out.println("Entry was modified on log dir.");
+                        System.out.println("Entry " + fileEntry.toString() + " was modified on log dir.");
+
                     } else if (ENTRY_DELETE.equals(kind)) {
-                        System.out.println("Entry was deleted from log dir.");
+                        System.out.println("Entry " + fileEntry.toString() + " was deleted from log dir.");
+
+                    } else if (ENTRY_RENAME_FROM.equals(kind)) {
+                        System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
+                        pathRenameFrom = fileEntry;
+
                     } else if (ENTRY_RENAME_TO.equals(kind)) {
-                        System.out.println("Entry was renamed on log dir.");
+                        System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
+                        pathRenameTo = fileEntry;
                     }
 
                     if (ENTRY_CREATE.equals(kind) ||
                             ENTRY_MODIFY.equals(kind) ||
-                            ENTRY_DELETE.equals(kind) ||
-                            //ENTRY_RENAME_FROM.equals(kind) ||
-                            ENTRY_RENAME_TO.equals(kind)){
+                            ENTRY_DELETE.equals(kind)){
                         syncServer();
+
+                    } else if (ENTRY_RENAME_TO.equals(kind)){
+                        renameFile(pathRenameFrom, pathRenameTo);
                     }
                 }
                 key.reset();
@@ -113,9 +125,32 @@ public class Client {
         File baseDirFolder = new File(baseDir);
         FolderSync.visitAllDirsAndFiles(s, ois, oos, baseDirFolder, true);
 
-        oos.writeObject(new String(DONE));
+        oos.writeObject(new String(FolderSync.DONE));
         oos.flush();
         System.out.println("sync finished ...");
+    }
+
+    private static void renameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
+        File fileRenameFrom = new File(pathRenameFrom.toString());
+        File fileRenameTo = new File(pathRenameTo.toString());
+
+        oos.writeObject(new String(FolderSync.RENAME));
+        oos.flush();
+        ois.readObject();
+
+        oos.writeObject(fileRenameFrom.toString());
+        oos.flush();
+        ois.readObject();
+
+        oos.writeObject(fileRenameTo.toString());
+        oos.flush();
+        ois.readObject();
+
+        oos.writeObject(new String(FolderSync.DONE));
+        oos.flush();
+        System.out.println("sync finished ...");
+
+
     }
 
 //    private static void registerRecursive(Path root) throws IOException {
