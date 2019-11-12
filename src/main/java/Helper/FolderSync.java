@@ -6,7 +6,8 @@ import java.util.Vector;
 
 public class FolderSync {
 
-    private static final String DONE = "DONE";
+    public static final String DONE = "DONE";
+    public static final String RENAME = "RENAME";
     public static String serverBaseDir = "";
     public static String clientBaseDir = "";
 
@@ -60,17 +61,45 @@ public class FolderSync {
         }
     }
 
+    private static void renameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        File oldFile = new File(serverBaseDir + "\\" + (String) ois.readObject());
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+
+        File newFile = new File(serverBaseDir + "\\" + (String) ois.readObject());
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+
+        System.out.println("oldFile: " + oldFile.toString());
+        System.out.println("newFile: " + newFile.toString());
+
+        if (oldFile.renameTo(newFile)) {
+            System.out.println("Rename successful");
+
+        } else {
+            System.out.println("Rename failed");
+        }
+    }
+
     public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName) throws Exception {
         Boolean isDone = false;
         while (!isDone) {
             Object obj = ois.readObject(); // dir name
             String path = (String) obj;
 
+            if (path.equals(RENAME)) {
+                oos.writeObject(new Boolean(true)); //ok
+                oos.flush();
+                renameUpdate(sock, ois, oos);
+                break;
+            }
+
             if (path.equals(DONE)) {
                 isDone = true;
                 System.out.println("getUpdate done");
                 break;
             }
+
             oos.writeObject(new Boolean(true)); // get the dir name
             oos.flush();
 

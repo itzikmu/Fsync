@@ -10,7 +10,6 @@ import java.util.Vector;
 
 // Server class
 public class Server {
-    private static final String DONE = "DONE";
     private static Socket sock;
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
@@ -68,7 +67,7 @@ public class Server {
         File baseDirFolder = new File(baseDir);
         FolderSync.visitAllDirsAndFiles(sock, ois, oos, baseDirFolder, false);
 
-        oos.writeObject(new String(DONE));
+        oos.writeObject(new String(FolderSync.DONE));
         oos.flush();
         System.out.println("sync finished ...");
     }
