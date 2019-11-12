@@ -21,4 +21,13 @@
         </plugins>
     </build>
 
+    <dependencies>
+        <dependency>
+            <groupId>net.sf.jpathwatch</groupId>
+            <artifactId>jpathwatch</artifactId>
+            <version>0.95</version>
+        </dependency>
+    </dependencies>
+
+
 </project>
