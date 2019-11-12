@@ -1,18 +1,22 @@
 package Client;
 
 import Helper.FolderSync;
-import com.sun.nio.file.ExtendedWatchEventModifier;
+
+import name.pachler.nio.file.*;
+import name.pachler.nio.file.ext.ExtendedWatchEventKind;
+import name.pachler.nio.file.ext.ExtendedWatchEventModifier;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 
-import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+import static name.pachler.nio.file.StandardWatchEventKind.ENTRY_CREATE;
+import static name.pachler.nio.file.StandardWatchEventKind.ENTRY_DELETE;
+import static name.pachler.nio.file.StandardWatchEventKind.ENTRY_MODIFY;
+import static name.pachler.nio.file.ext.ExtendedWatchEventKind.ENTRY_RENAME_FROM;
+import static name.pachler.nio.file.ext.ExtendedWatchEventKind.ENTRY_RENAME_TO;
+
 
 public class Client {
     final static int ServerPort = 1234;
@@ -54,7 +58,19 @@ public class Client {
 //            folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
 //            registerRecursive(folderDir);
 
-            folderDir.register(watcher, new WatchEvent.Kind[] {StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY}, ExtendedWatchEventModifier.FILE_TREE);
+//            folderDir.register(watcher, new WatchEvent.Kind[] {StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY}, ExtendedWatchEventModifier.FILE_TREE);
+            folderDir.register(watcher, new WatchEvent.Kind<?>[]{
+                            ENTRY_RENAME_FROM,
+                            ENTRY_RENAME_TO,
+                            ENTRY_CREATE,
+                            ENTRY_DELETE,
+                            ENTRY_MODIFY
+                    },
+                    new WatchEvent.Modifier<?>[]{
+                            ExtendedWatchEventModifier.ACCURATE,
+                            ExtendedWatchEventModifier.FILE_TREE
+                    }
+            );
 
             // Monitor the logDir at listen for change notification.
             while (true) {
@@ -63,9 +79,9 @@ public class Client {
                 for (WatchEvent<?> event : key.pollEvents()) {
                     WatchEvent.Kind<?> kind = event.kind();
 
-//                    if (kind == OVERFLOW) {
-//                        continue;
-//                    }
+                    if (kind == ExtendedWatchEventKind.KEY_INVALID) {
+                        continue;
+                    }
 
                     if (ENTRY_CREATE.equals(kind)) {
                         System.out.println("Entry was created on log dir.");
@@ -73,11 +89,17 @@ public class Client {
                         System.out.println("Entry was modified on log dir.");
                     } else if (ENTRY_DELETE.equals(kind)) {
                         System.out.println("Entry was deleted from log dir.");
+                    } else if (ENTRY_RENAME_TO.equals(kind)) {
+                        System.out.println("Entry was renamed on log dir.");
                     }
 
-                    if (ENTRY_CREATE.equals(kind) || ENTRY_MODIFY.equals(kind) || ENTRY_DELETE.equals(kind))
+                    if (ENTRY_CREATE.equals(kind) ||
+                            ENTRY_MODIFY.equals(kind) ||
+                            ENTRY_DELETE.equals(kind) ||
+                            //ENTRY_RENAME_FROM.equals(kind) ||
+                            ENTRY_RENAME_TO.equals(kind)){
                         syncServer();
-
+                    }
                 }
                 key.reset();
             }
