@@ -1,7 +1,6 @@
 package Server;
 
 import Helper.FolderSync;
-import Helper.Transfer;
 
 import java.io.*;
 import java.net.ServerSocket;
@@ -10,16 +9,16 @@ import java.util.Vector;
 
 // Server class
 public class Server {
-    private static final String DONE = "DONE";
     private static Socket sock;
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
-    private static ServerSocket servsock;
+
     private static String baseDir;
+    private static int clientFilesCount = 0;
+
     static Vector<ClientHandler> ar = new Vector<>();
 
     public static void main(String[] args) throws Exception {
-
         startServer();
     }
 
@@ -27,107 +26,62 @@ public class Server {
     public static void startServer() throws Exception {
         System.out.println("Starting File Sync Server!");
 
-        servsock = new ServerSocket(1234);
+        ServerSocket servsock = new ServerSocket(1234);
 
+        baseDir = "C:\\Temp\\ServerFolder";
+        FolderSync.serverBaseDir = baseDir;
+
+        File baseDirFolder = new File(baseDir);
+
+        if (!baseDirFolder.exists())
+            baseDirFolder.mkdir();
+
+        System.setProperty("user.dir", baseDir);
+
+        sock = servsock.accept();
+        System.out.println("New client connected! IP: " + sock.getInetAddress().toString() + " Directory: " + baseDir);
+
+        ois = new ObjectInputStream(sock.getInputStream());
+        oos = new ObjectOutputStream(sock.getOutputStream());
+
+        Boolean isClientDone = false;
+
+        syncClient();
+
+//        int serverFilesCount = FolderSync.fileCount(baseDirFolder);
+//        System.out.println(baseDir + " has " + serverFilesCount + " files");
 
         while (true) {
-            sock = servsock.accept();
-
-            ois = new ObjectInputStream(sock.getInputStream());
-
-//            baseDir = "serverFolder";
-            baseDir = (String) ois.readObject();
-
-            oos = new ObjectOutputStream(sock.getOutputStream());
-
-            System.out.println("New client connected! IP: " + sock.getInetAddress().toString() + " Directory: " + baseDir);
-
-            File fBaseDir = new File(baseDir);
-            Boolean baseDirExists = fBaseDir.exists();
-
-            if (!baseDirExists)
-                fBaseDir.mkdir();
-
-            oos.writeObject(new Boolean(baseDirExists));
-            oos.flush();
-
-            Boolean isClientDone = false;
-
-            while (!isClientDone) {
-                Vector<String> vec = (Vector<String>) ois.readObject();
-
-
-                if (vec.elementAt(0).equals(DONE)) {  // check if we are done
-                    isClientDone = true; // if so break out
-                    break;
-                }
-
-                if (vec.size() == 2) { // if the size is 2 then this is a directory
-                    File newDir = new File(baseDir, vec.elementAt(1));
-                    if (!newDir.exists())
-                        newDir.mkdir();
-
-                    oos.writeObject(new Boolean(true)); // tell client that we are ready
-                    oos.flush();
-                } else {
-                    File newFile = new File(baseDir, vec.elementAt(1));
-                    Integer updateFromClient = 2; // default = do nothing
-
-                    Long lastModified = new Long(vec.elementAt(2));
-                    if (!newFile.exists() || (newFile.lastModified() <= lastModified))
-                        updateFromClient = 1;
-                    else
-                        updateFromClient = 0;
-
-                    if (newFile.exists() && newFile.lastModified() == lastModified)
-                        updateFromClient = 2;
-
-                    if (updateFromClient == 1) { // If true receive file from client
-                        newFile.delete();
-
-                        oos.writeObject(new Integer(updateFromClient));
-                        oos.flush();
-
-                        Transfer.receiveFile(sock, ois, oos, newFile);
-
-                        newFile.setLastModified(lastModified);
-
-                        oos.writeObject(new Boolean(true));
-                    } else if (updateFromClient == 0) { // if false send file to client
-                        oos.writeObject(new Integer(updateFromClient));
-                        oos.flush();
-
-                        ois.readObject();
-
-                        Transfer.sendFile(sock, ois, oos, newFile);
-
-                        ois.readObject();
-
-                        oos.writeObject(new Long(newFile.lastModified()));
-                        oos.flush();
-                    } else { //updateFromClient == 2 // do nothing
-                        oos.writeObject(new Integer(updateFromClient));
-                        oos.flush();
-                    }
-                }
-
-
-                File baseDirFile = new File(baseDir);
-                if (baseDirExists)
-                    FolderSync.visitAllDirsAndFiles(sock, ois, oos, fBaseDir.getAbsolutePath(), baseDirFile);
-
-                oos.writeObject(new String(DONE));
-                oos.flush();
-                System.out.print("sync finished ...");
-
-            }
-            oos.close();
-            ois.close();
-            sock.close();
-            System.out.println("Client disconnected.");
+            System.out.println("Waiting for Client update...");
+            FolderSync.getUpdate(sock, ois, oos);
         }
+
+//            while (!isClientDone) {
+//                syncClient();
+//            }
+//            oos.close();
+//            ois.close();
+//            sock.close();
+//        System.out.println("Client disconnected.");
     }
 
+    private static void syncClient() throws Exception {
+        File baseDirFolder = new File(baseDir);
+
+        oos.writeObject(new String(FolderSync.MODIFY));
+        oos.flush();
+        ois.readObject();
+
+        FolderSync.sendUpdate(sock, ois, oos, baseDirFolder, baseDir.length());
+
+        done();
+    }
+
+    private static void done() throws Exception {
+        oos.writeObject(new String(FolderSync.DONE));
+        oos.flush();
+        System.out.println("server sync finished ...");
+    }
 
     // Vector to store active clients
     // static Vector<ClientHandler> ar = new Vector<>();

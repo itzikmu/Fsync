@@ -6,170 +6,193 @@ import java.util.Vector;
 
 public class FolderSync {
 
-    private static final String DONE = "DONE";
+    public static final String DONE = "DONE";
+    public static final String RENAME = "RENAME";
+    public static final String DELETE = "DELETE";
+    public static final String MODIFY = "MODIFY";
+    public static String serverBaseDir = "";
+    public static String clientBaseDir = "";
 
-    public static void sync(Socket sock, String dirName, String fullDirName) throws Exception {
-        ObjectOutputStream oos = new ObjectOutputStream(sock.getOutputStream());
-        oos.writeObject(new String(dirName));
-        oos.flush();
-
-        ObjectInputStream ois = new ObjectInputStream(sock.getInputStream());
-
-        System.out.print("Syncing..");
-
-        // receive if this directory exists
-        Boolean fExists = (Boolean) ois.readObject();
-
-        File baseDir = new File(fullDirName); // skipping the base dir as it already should be set up on the server
-        String[] children = baseDir.list();
-
-        for (int i=0; i < children.length; i++) {
-            visitAllDirsAndFiles(sock, ois, oos, fullDirName, new File(baseDir, children[i]));
-        }
-        Vector<String> vecDONE = new Vector<String>();
-        vecDONE.add(DONE);
-        oos.writeObject(vecDONE);
-        oos.flush();
-
-        if(fExists)
-            getUpdate(sock, ois, oos, fullDirName);
-
-        System.out.println("--------Sync completed!----------");
-        System.out.println();
-    }
 
     // Process all files and directories under dir
-    public static void visitAllDirsAndFiles(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName, File dir) throws Exception{
-        Vector<String> vec = new Vector<String>();
-        vec.add(dir.getName());
-        vec.add(dir.getAbsolutePath().substring((dir.getAbsolutePath().indexOf(fullDirName) + fullDirName.length())));
-
-        if(dir.isDirectory()) {
-            oos.writeObject(vec);
-            oos.flush();
-
-
-            ois.readObject();
+    public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen) throws Exception {
+        if (dir.getAbsolutePath() == serverBaseDir || dir.getAbsolutePath() == clientBaseDir) {
+            System.out.println("Starting to sync!");
         } else {
-            vec.add(new Long(dir.lastModified()).toString());
-            oos.writeObject(vec);
+            //int baseFolderLen = (isClient ? clientBaseDir.length() : serverBaseDir.length());
+            oos.writeObject(new String(dir.getAbsolutePath().substring(baseFolderLen)));
             oos.flush();
 
-            // receive SEND or RECEIVE
-            Integer updateToServer = (Integer) ois.readObject(); //if true update server, else update from server
+            ois.readObject(); // other side get the dir name
 
-            if (updateToServer == 1) {  // send file to server
-                Transfer.sendFile(sock, ois, oos, dir);
+            Boolean isDirectory = dir.isDirectory();
+            oos.writeObject(new Boolean(isDirectory)); //Boolean isDirectory
+            oos.flush();
 
-                ois.readObject(); // make sure server got the file
+            if (isDirectory) {
+                if (!(Boolean) ois.readObject()) { // dir NOT exist on the other side
+                    oos.writeObject(new Boolean(true)); // send ok
+                    oos.flush();
+                }
 
-            } else if (updateToServer == 0) { // update file from server.
-                dir.delete(); // first delete the current file
+            } else {
+                if (!(Boolean) ois.readObject()) { // File NOT exist on the other side
+                    oos.writeObject(new Boolean(true)); // ok
+                    oos.flush();
 
-                oos.writeObject(new Boolean(true)); // send "Ready"
-                oos.flush();
+                    Transfer.sendFile(sock, oos, dir);
 
-                Transfer.receiveFile(sock, ois, oos, dir);
+                } else {
+                    oos.writeObject(new Long(dir.lastModified())); // send last modified
+                    oos.flush();
 
-                oos.writeObject(new Boolean(true)); // send back ok
-                oos.flush();
+                    if ((Boolean) ois.readObject()) { // send update
+                        Transfer.sendFile(sock, oos, dir);
 
-                Long updateLastModified = (Long) ois.readObject(); // update the last modified date for this file from the server
-                dir.setLastModified(updateLastModified);
-
-            } // no need to check if update to server == 2 because we do nothing here
+                    } else { // DO NOTHING!
+                        //System.out.println("Everything is UP TO DATE!");
+                    }
+                }
+            }
         }
+
         if (dir.isDirectory()) {
             String[] children = dir.list();
-            for (int i=0; i<children.length; i++) {
-                visitAllDirsAndFiles(sock, ois, oos, fullDirName, new File(dir, children[i]));
+            for (int i = 0; i < children.length; i++) {
+                sendUpdate(sock, ois, oos, new File(dir, children[i]), baseFolderLen);
             }
         }
     }
 
-    private static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String fullDirName) throws Exception {
-        Boolean isDone = false;
-        Boolean nAll = false;
-        while(!isDone) {
-            String path = (String) ois.readObject();
+    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        String action = (String) ois.readObject();
 
-            if(path.equals(DONE)) {
+        if (action.equals(RENAME)) {
+            oos.writeObject(new Boolean(true)); //ok
+            oos.flush();
+            renameUpdate(sock, ois, oos);
+        }
+
+        if (action.equals(DELETE)) {
+            oos.writeObject(new Boolean(true)); //ok
+            oos.flush();
+            deleteUpdate(sock, ois, oos);
+        }
+
+        if (action.equals(MODIFY)) {
+            oos.writeObject(new Boolean(true)); //ok
+            oos.flush();
+            modifyUpdate(sock, ois, oos);
+        }
+    }
+
+    private static void modifyUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        Boolean isDone = false;
+
+        while (!isDone) {
+            String path = (String) ois.readObject(); // dir name
+
+            if (path.equals(DONE)) {
+                System.out.println("getUpdate done");
                 isDone = true;
                 break;
             }
-
-            oos.writeObject(new Boolean(true));
+            oos.writeObject(new Boolean(true)); // get the dir name
             oos.flush();
 
-            File newFile = new File(fullDirName + path);
+            File newFile = new File(System.getProperty("user.dir") + "\\" + path);
 
-            Boolean isDirectory = (Boolean) ois.readObject();
+            Boolean isDirectory = (Boolean) ois.readObject(); //Boolean isDirectory
 
-            oos.writeObject(new Boolean(newFile.exists()));
+            oos.writeObject(new Boolean(newFile.exists())); // send if folder/file exist
             oos.flush();
             if (!newFile.exists()) {
-                ois.readObject();
-                String userInput = null;
-                if (!nAll) {
-                    if (isDirectory) {
-                        System.out.println("CONFLICT! The folder exists on the server but not on this client.");
-                        System.out.println("Would you like to delete the folder on the server (if not, the folder will be copied to this client)?");
-                        System.out.println("No - for all folders. I will create a server copy on this client");
-                    } else {
-                        System.out.println("CONFLICT! The file exists on the server but not on this client.");
-                        System.out.println("Would you like to delete the file on the server (if not, the file will be copied to this client)?");
-                        System.out.println("No - for all files. I will create a server copy on this client");
-                    }
-                    System.out.println("Press: [y] for YES, [n] for NO, [a] for (NO for all files) ");
-                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-                    try {
-                        userInput = br.readLine();
-                    } catch (IOException ioe) {
-                        System.out.println("You have not typed a correct value, no action will be taken.");
-                    }
-                } else // if n to all then just set input to n!
-                    userInput = "n";
-                if (userInput.equalsIgnoreCase("a") || userInput.equalsIgnoreCase("'a'")) {
-                    nAll = true;
-                    userInput = "n";
-                }
-                if (userInput.equalsIgnoreCase("y") || userInput.equalsIgnoreCase("'y'")) {
-                    if (isDirectory) {
-                        oos.writeObject(new Boolean(true)); // reply with yes to delete the server's copy
-                        oos.flush();
-                    } else {
-                        oos.writeObject(new Integer(1));
-                        oos.flush();
-                    }
-                } else if (userInput.equalsIgnoreCase("n") || userInput.equalsIgnoreCase("'n'")) {
-                    if (isDirectory) {
-                        newFile.mkdir();
-                        oos.writeObject(new Boolean(false));
-                        oos.flush();
-                    } else {
-                        oos.writeObject(new Integer(0));
-                        oos.flush();
-                        Transfer.receiveFile(sock, ois, oos, newFile);
+                ois.readObject(); // ok
 
-                        oos.writeObject(new Boolean(true));
-                        oos.flush();
+                if (isDirectory) {
+                    newFile.mkdir();
 
-                        Long lastModified = (Long) ois.readObject();
-                        newFile.setLastModified(lastModified);
-
-                        oos.writeObject(new Boolean(true));
-                        oos.flush();
-                    }
                 } else {
-                    if (isDirectory) {
-                        oos.writeObject(new Boolean(false));
-                        oos.flush();
-                    } else {
-                        oos.writeObject(new Integer(2));
-                        oos.flush();
-                    }
+                    Transfer.receiveFile(sock, ois, newFile);
+
+                }
+            } else { // file already exist
+                if (isDirectory)
+                    continue;
+
+                Long recvLastModified = (Long) ois.readObject(); // dir last modified on other side
+                Long currLastModified = new Long(newFile.lastModified());
+
+                if (recvLastModified > currLastModified) {
+                    oos.writeObject(new Boolean(true)); // yes, give me update
+                    oos.flush();
+
+                    Transfer.receiveFile(sock, ois, newFile);
+
+                    newFile.setLastModified(recvLastModified);
+
+                } else {
+                    oos.writeObject(new Boolean(false)); // no, I'm up to date
+                    oos.flush();
                 }
             }
         }
     }
+
+    private static void renameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        File oldFile = new File( System.getProperty("user.dir") + "\\" + (String) ois.readObject());
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+
+        File newFile = new File(System.getProperty("user.dir") + "\\" + (String) ois.readObject());
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+
+        System.out.println("oldFile: " + oldFile.toString());
+        System.out.println("newFile: " + newFile.toString());
+
+        if (oldFile.renameTo(newFile)) {
+            System.out.println("Rename successful");
+
+        } else {
+            System.out.println("Rename failed");
+        }
+    }
+
+    private static void deleteUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        File fileToDel = new File(System.getProperty("user.dir") + "\\" + (String) ois.readObject());
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+
+        if (fileToDel.delete()) {
+            System.out.println("File deleted successfully");
+        } else {
+            System.out.println("Failed to delete the file");
+        }
+    }
+
+    public static int fileCount(File file) {
+        File[] files = file.listFiles();
+        int count = 0;
+
+        for (File f : files) {
+            if (f.isDirectory())
+                count += fileCount(f);
+            else
+                count++;
+        }
+
+        return count;
+    }
+
+//    public static void deleteAllDirsAndFiles(File dir) {
+//        if (dir.isDirectory()) {
+//            String[] children = dir.list();
+//            for (int i = 0; i < children.length; i++) {
+//                deleteAllDirsAndFiles(new File(dir, children[i]));
+//            }
+//        }
+//        dir.delete();
+//    }
+
 }
