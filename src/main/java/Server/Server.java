@@ -1,7 +1,6 @@
 package Server;
 
 import Helper.FolderSync;
-import Helper.Transfer;
 
 import java.io.*;
 import java.net.ServerSocket;
@@ -13,8 +12,10 @@ public class Server {
     private static Socket sock;
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
+
     private static String baseDir;
-    private static Boolean baseDirExists;
+    private static int clientFilesCount = 0;
+
     static Vector<ClientHandler> ar = new Vector<>();
 
     public static void main(String[] args) throws Exception {
@@ -27,30 +28,32 @@ public class Server {
 
         ServerSocket servsock = new ServerSocket(1234);
 
-        sock = servsock.accept();
-
-        ois = new ObjectInputStream(sock.getInputStream());
-
         baseDir = "C:\\Temp\\ServerFolder";
         FolderSync.serverBaseDir = baseDir;
 
-        oos = new ObjectOutputStream(sock.getOutputStream());
+        File baseDirFolder = new File(baseDir);
 
+        if (!baseDirFolder.exists())
+            baseDirFolder.mkdir();
+
+        System.setProperty("user.dir", baseDir);
+
+        sock = servsock.accept();
         System.out.println("New client connected! IP: " + sock.getInetAddress().toString() + " Directory: " + baseDir);
 
-        File fBaseDir = new File(baseDir);
-        baseDirExists = fBaseDir.exists();
-
-        if (!baseDirExists)
-            fBaseDir.mkdir();
+        ois = new ObjectInputStream(sock.getInputStream());
+        oos = new ObjectOutputStream(sock.getOutputStream());
 
         Boolean isClientDone = false;
 
         syncClient();
 
+//        int serverFilesCount = FolderSync.fileCount(baseDirFolder);
+//        System.out.println(baseDir + " has " + serverFilesCount + " files");
+
         while (true) {
-            System.out.println("Waiting for Client update");
-            FolderSync.getUpdate(sock, ois, oos, baseDir);
+            System.out.println("Waiting for Client update...");
+            FolderSync.getUpdate(sock, ois, oos);
         }
 
 //            while (!isClientDone) {
@@ -64,13 +67,21 @@ public class Server {
 
     private static void syncClient() throws Exception {
         File baseDirFolder = new File(baseDir);
-        FolderSync.visitAllDirsAndFiles(sock, ois, oos, baseDirFolder, false);
 
-        oos.writeObject(new String(FolderSync.DONE));
+        oos.writeObject(new String(FolderSync.MODIFY));
         oos.flush();
-        System.out.println("sync finished ...");
+        ois.readObject();
+
+        FolderSync.sendUpdate(sock, ois, oos, baseDirFolder, baseDir.length());
+
+        done();
     }
 
+    private static void done() throws Exception {
+        oos.writeObject(new String(FolderSync.DONE));
+        oos.flush();
+        System.out.println("server sync finished ...");
+    }
 
     // Vector to store active clients
     // static Vector<ClientHandler> ar = new Vector<>();
