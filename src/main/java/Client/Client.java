@@ -9,7 +9,6 @@ import name.pachler.nio.file.ext.ExtendedWatchEventModifier;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 
 import static name.pachler.nio.file.StandardWatchEventKind.ENTRY_CREATE;
 import static name.pachler.nio.file.StandardWatchEventKind.ENTRY_DELETE;
@@ -25,11 +24,11 @@ public class Client {
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
     private static String baseDir;
-    private static Boolean baseDirExists;
     private static WatchService watcher;
 
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
+
         baseDir = "C:\\Temp\\TestFolder";
         FolderSync.clientBaseDir = baseDir;
 
@@ -37,6 +36,8 @@ public class Client {
         if (!baseDirFolder.exists()) {
             baseDirFolder.mkdir();
         }
+
+        System.setProperty("user.dir", baseDir);
 
         // getting localhost ip
         InetAddress ip = InetAddress.getByName("localhost");
@@ -46,7 +47,7 @@ public class Client {
         oos = new ObjectOutputStream(s.getOutputStream());
         ois = new ObjectInputStream(s.getInputStream());
 
-        FolderSync.getUpdate(s, ois, oos, baseDir);
+        FolderSync.getUpdate(s, ois, oos);
 
         try {
             // Creates a instance of WatchService.
@@ -54,10 +55,6 @@ public class Client {
 
             // Registers the logDir below with a watch service.
             Path folderDir = Paths.get(baseDir);
-//            folderDir.register(watcher, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
-//            registerRecursive(folderDir);
-
-//            folderDir.register(watcher, new WatchEvent.Kind[] {StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY}, ExtendedWatchEventModifier.FILE_TREE);
             folderDir.register(watcher, new WatchEvent.Kind<?>[]{
                             ENTRY_RENAME_FROM,
                             ENTRY_RENAME_TO,
@@ -70,6 +67,9 @@ public class Client {
                             ExtendedWatchEventModifier.FILE_TREE
                     }
             );
+
+//            int clientFilesCount = FolderSync.fileCount(baseDirFolder);
+//            System.out.println(baseDir + " has " + clientFilesCount + " files");
 
             // Monitor the logDir at listen for change notification.
             Path pathRenameFrom = null, pathRenameTo = null;
@@ -86,14 +86,14 @@ public class Client {
                         continue;
                     }
 
-                    if (ENTRY_CREATE.equals(kind)) {
-                        System.out.println("Entry " + fileEntry.toString() + " was created on log dir.");
-
-                    } else if (ENTRY_MODIFY.equals(kind)) {
+                    if (ENTRY_CREATE.equals(kind) ||
+                            ENTRY_MODIFY.equals(kind)) {
                         System.out.println("Entry " + fileEntry.toString() + " was modified on log dir.");
+                        syncServer();
 
                     } else if (ENTRY_DELETE.equals(kind)) {
                         System.out.println("Entry " + fileEntry.toString() + " was deleted from log dir.");
+                        deleteFile(fileEntry);
 
                     } else if (ENTRY_RENAME_FROM.equals(kind)) {
                         System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
@@ -102,14 +102,6 @@ public class Client {
                     } else if (ENTRY_RENAME_TO.equals(kind)) {
                         System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
                         pathRenameTo = fileEntry;
-                    }
-
-                    if (ENTRY_CREATE.equals(kind) ||
-                            ENTRY_MODIFY.equals(kind) ||
-                            ENTRY_DELETE.equals(kind)){
-                        syncServer();
-
-                    } else if (ENTRY_RENAME_TO.equals(kind)){
                         renameFile(pathRenameFrom, pathRenameTo);
                     }
                 }
@@ -123,11 +115,28 @@ public class Client {
 
     private static void syncServer() throws Exception {
         File baseDirFolder = new File(baseDir);
-        FolderSync.visitAllDirsAndFiles(s, ois, oos, baseDirFolder, true);
 
-        oos.writeObject(new String(FolderSync.DONE));
+        oos.writeObject(new String(FolderSync.MODIFY));
         oos.flush();
-        System.out.println("sync finished ...");
+        ois.readObject();
+
+        FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length());
+
+        done();
+    }
+
+    private static void deleteFile(Path pathToDelete) throws Exception {
+        File fileToDelete = new File(pathToDelete.toString());
+
+        oos.writeObject(new String(FolderSync.DELETE));
+        oos.flush();
+        ois.readObject();
+
+        oos.writeObject(fileToDelete.toString());
+        oos.flush();
+        ois.readObject();
+
+        done();
     }
 
     private static void renameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
@@ -146,11 +155,13 @@ public class Client {
         oos.flush();
         ois.readObject();
 
+        done();
+    }
+
+    private static void done() throws Exception {
         oos.writeObject(new String(FolderSync.DONE));
         oos.flush();
-        System.out.println("sync finished ...");
-
-
+        System.out.println("client sync finished ...");
     }
 
 //    private static void registerRecursive(Path root) throws IOException {
@@ -206,4 +217,6 @@ public class Client {
 //        sendMessage.start();
 //        readMessage.start();
 //    )
+
+
 }
