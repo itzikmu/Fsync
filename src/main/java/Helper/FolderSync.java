@@ -17,7 +17,7 @@ public class FolderSync {
     // Process all files and directories under dir
     public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen) throws Exception {
         if (dir.getAbsolutePath() == serverBaseDir || dir.getAbsolutePath() == clientBaseDir) {
-            System.out.println("sendUpdate - this is the base dir!");
+            System.out.println("Starting to sync!");
         } else {
             //int baseFolderLen = (isClient ? clientBaseDir.length() : serverBaseDir.length());
             oos.writeObject(new String(dir.getAbsolutePath().substring(baseFolderLen)));

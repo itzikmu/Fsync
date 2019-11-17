@@ -48,6 +48,7 @@ public class Client {
         ois = new ObjectInputStream(s.getInputStream());
 
         FolderSync.getUpdate(s, ois, oos);
+        syncServer();
 
         try {
             // Creates a instance of WatchService.

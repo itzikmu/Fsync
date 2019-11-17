@@ -52,7 +52,7 @@ public class Server {
 //        System.out.println(baseDir + " has " + serverFilesCount + " files");
 
         while (true) {
-            System.out.println("Waiting for Client update");
+            System.out.println("Waiting for Client update...");
             FolderSync.getUpdate(sock, ois, oos);
         }
 
