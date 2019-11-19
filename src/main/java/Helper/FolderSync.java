@@ -10,16 +10,12 @@ public class FolderSync {
     public static final String RENAME = "RENAME";
     public static final String DELETE = "DELETE";
     public static final String MODIFY = "MODIFY";
-    public static String serverBaseDir = "";
-    public static String clientBaseDir = "";
-
 
     // Process all files and directories under dir
-    public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen) throws Exception {
-        if (dir.getAbsolutePath() == serverBaseDir || dir.getAbsolutePath() == clientBaseDir) {
+    public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen, boolean syncStart) throws Exception {
+        if (syncStart) {
             System.out.println("Starting to sync!");
         } else {
-            //int baseFolderLen = (isClient ? clientBaseDir.length() : serverBaseDir.length());
             oos.writeObject(new String(dir.getAbsolutePath().substring(baseFolderLen)));
             oos.flush();
 
@@ -59,30 +55,34 @@ public class FolderSync {
         if (dir.isDirectory()) {
             String[] children = dir.list();
             for (int i = 0; i < children.length; i++) {
-                sendUpdate(sock, ois, oos, new File(dir, children[i]), baseFolderLen);
+                sendUpdate(sock, ois, oos, new File(dir, children[i]), baseFolderLen, false);
             }
         }
     }
 
-    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-        String action = (String) ois.readObject();
+    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) {
+        try {
+            String action = (String) ois.readObject();
+            System.out.println("action: " + action);
+            if (action.equals(RENAME)) {
+                oos.writeObject(new Boolean(true)); //ok
+                oos.flush();
+                renameUpdate(sock, ois, oos);
+            }
 
-        if (action.equals(RENAME)) {
-            oos.writeObject(new Boolean(true)); //ok
-            oos.flush();
-            renameUpdate(sock, ois, oos);
-        }
+            if (action.equals(DELETE)) {
+                oos.writeObject(new Boolean(true)); //ok
+                oos.flush();
+                deleteUpdate(sock, ois, oos);
+            }
 
-        if (action.equals(DELETE)) {
-            oos.writeObject(new Boolean(true)); //ok
-            oos.flush();
-            deleteUpdate(sock, ois, oos);
-        }
-
-        if (action.equals(MODIFY)) {
-            oos.writeObject(new Boolean(true)); //ok
-            oos.flush();
-            modifyUpdate(sock, ois, oos);
+            if (action.equals(MODIFY)) {
+                oos.writeObject(new Boolean(true)); //ok
+                oos.flush();
+                modifyUpdate(sock, ois, oos);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -118,7 +118,7 @@ public class FolderSync {
                 }
             } else { // file already exist
                 if (isDirectory)
-                    continue;
+                continue;
 
                 Long recvLastModified = (Long) ois.readObject(); // dir last modified on other side
                 Long currLastModified = new Long(newFile.lastModified());
