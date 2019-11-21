@@ -52,7 +52,7 @@ public class Client {
         ois = new ObjectInputStream(s.getInputStream());
 
 
-        FolderSync.getUpdate(s, ois, oos);
+        FolderSync.getUpdate(s, ois, oos, "MODIFY");
         runReadThread();
 
         syncServer();
@@ -70,7 +70,12 @@ public class Client {
                     System.out.println("ReadThread:listening for server messages");
                     readObject = ois.readObject();
                     System.out.println("ReadThread:got message from server " + readObject.toString());
-                } catch (Exception e) {
+                } catch (java.net.SocketException e) {
+                    System.out.println("socket is closed " + e.getMessage());
+
+                }
+                catch (Exception e)
+                {
                     e.printStackTrace();
                 }
             }

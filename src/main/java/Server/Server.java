@@ -61,6 +61,7 @@ public class Server {
 
             // start the thread.
             t.start();
+            ClientHandler.TotalClientsCounter++;
 
             // increment i for new client.
             // i is used for naming only, and can be replaced by any naming scheme

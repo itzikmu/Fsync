@@ -16,6 +16,12 @@ class ClientHandler implements Runnable {
     private ObjectOutputStream oos;
     Socket socket;
     boolean isloggedin;
+    static int TotalClientsCounter;
+    static int numOfClientsNotUpdated = 0;
+    boolean thisClientUpdated = true;
+    private  Thread readThread;
+    private  Thread getUpdateThread;
+    private  Object readObject;
 
     // constructor
     public ClientHandler(Socket socket, String name, ObjectInputStream ois, ObjectOutputStream oos) {
@@ -29,37 +35,29 @@ class ClientHandler implements Runnable {
     @Override
     public void run() {
 
-        syncClient();
-        FolderSync.getUpdate(socket, ois, oos);
+        syncClient(true);
+        FolderSync.getUpdate(socket, ois, oos, "MODIFY");
+        runReadThread();
+
 
         while (true) {
             try {
-                // NOW getting 'Im ALlive' TODO: 19/11/2019 recive client logout
-//                String action = (String) ois.readObject();
-//
-//                System.out.println("action: " + action);
-//
-//                oos.writeObject(new Boolean(true)); //ok
-//                oos.flush();
+                if(readThread!= null) {
 
-//                if (action.equals("logout")) {
-//                    this.isloggedin = false;
-//                    this.socket.close();
-//                    break;
-//                }
 
-                System.out.println(name + ": Waiting for Client update...");
-                FolderSync.getUpdate(socket, ois, oos);
+                    FolderSync.getUpdate(socket, ois, oos, (String)readObject);
+                    readObject = null;
+                    runReadThread();
+                }
 
-                // search for the recipient in the connected devices list.
-                // ar is the vector storing client of active users
-//                for (ClientHandler mc : Server.ar) {
-//                    // if the recipient is found, send him update
-//                    if (mc.isloggedin == true) {
-//                        System.out.println("Send update to " + this.name);
-//                        syncClient();
-//                    }
-//                }
+                else if (!thisClientUpdated && numOfClientsNotUpdated > 0) {
+                        syncClient(false);
+                        thisClientUpdated = true;
+                        numOfClientsNotUpdated--;
+
+
+                    runReadThread();
+                }
 
             } catch (Exception e) {
 
@@ -67,27 +65,55 @@ class ClientHandler implements Runnable {
             }
         }
 
-//        try {
-//            // closing resources
-//            this.ois.close();
-//            this.oos.close();
-//
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
+
+    }
+    private void runReadThread() {
+
+        readThread = new Thread() {
+            public void run() {
+                try {
+                    System.out.println(name+": ReadThread:listening for client messages");
+                    readObject = ois.readObject();
+                    System.out.println(name+":ReadThread:got message from client " + readObject.toString());
+                } catch (java.net.SocketException e) {
+                    System.out.println(name+":socket is closed " + e.getMessage());
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        readThread.start();
     }
 
-    private void syncClient() {
+
+
+
+
+    private void syncClient(boolean firstSync) {
         try {
-            File baseDirFolder = new File(Server.baseDir);
 
-            oos.writeObject(new String(FolderSync.MODIFY));
-            oos.flush();
-            ois.readObject();
 
-            FolderSync.sendUpdate(socket, ois, oos, baseDirFolder, Server.baseDir.length(), true);
+                File baseDirFolder = new File(Server.baseDir);
 
-            done();
+                oos.writeObject(new String(FolderSync.MODIFY));
+                oos.flush();
+                if(!firstSync) {
+                    while (readObject == null) {
+                        ;
+                    }
+                }
+                else{
+                    ois.readObject();
+                }
+
+                FolderSync.sendUpdate(socket, ois, oos, baseDirFolder, Server.baseDir.length(), true);
+
+                done();
+
+
+
         } catch (Exception e) {
             e.printStackTrace();
         }

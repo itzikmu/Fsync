@@ -67,9 +67,9 @@ public class FolderSync {
         }
     }
 
-    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) {
+    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos ,String action) {
         try {
-            String action = (String) ois.readObject();
+
             System.out.println("action: " + action+"start");
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
