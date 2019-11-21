@@ -1,5 +1,5 @@
 
 # .gitignore
-.idea/
-Fsync.iml
+.idea/libraries/
+.idea/workspace.xml
 target/
