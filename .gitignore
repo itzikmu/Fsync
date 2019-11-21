@@ -1,7 +1,7 @@
 .idea
 
 # Compiled class file
-/target
+target
 
 # Log file
 *.log
@@ -15,4 +15,4 @@
 *.tar.gz
 *.rar
 
-/Fsync.iml
+Fsync.iml
