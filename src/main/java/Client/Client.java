@@ -29,8 +29,9 @@ public class Client {
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
 
-        baseDir = "C:\\Temp\\TestFolder";
-        FolderSync.clientBaseDir = baseDir;
+        System.out.println("Your baseDir is: " + args[0]);
+//        baseDir = "C:\\Temp\\TestFolder";
+        baseDir = args[0];
 
         File baseDirFolder = new File(baseDir);
         if (!baseDirFolder.exists()) {
@@ -75,17 +76,23 @@ public class Client {
             // Monitor the logDir at listen for change notification.
             Path pathRenameFrom = null, pathRenameTo = null;
             while (true) {
+
                 WatchKey key = watcher.take();
 
                 for (WatchEvent<?> event : key.pollEvents()) {
+
                     WatchEvent.Kind<?> kind = event.kind();
 
                     // Retrieve the file name associated with the event
                     Path fileEntry = (Path) event.context();
 
                     if (kind == ExtendedWatchEventKind.KEY_INVALID) {
+                        System.out.println("continue.................");
                         continue;
                     }
+
+                    // NOW send 'Im ALlive' TODO: 19/11/2019 send client logout
+                    //keepAlive();
 
                     if (ENTRY_CREATE.equals(kind) ||
                             ENTRY_MODIFY.equals(kind)) {
@@ -104,7 +111,8 @@ public class Client {
                         System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
                         pathRenameTo = fileEntry;
                         renameFile(pathRenameFrom, pathRenameTo);
-                    }
+                    } else
+                        System.out.println("continue !!!!!");
                 }
                 key.reset();
             }
@@ -114,6 +122,13 @@ public class Client {
         }
     }
 
+    private static void keepAlive() throws Exception {
+        oos.writeObject(new String("I'm Alive"));
+        oos.flush();
+        ois.readObject();
+    }
+
+
     private static void syncServer() throws Exception {
         File baseDirFolder = new File(baseDir);
 
@@ -121,7 +136,7 @@ public class Client {
         oos.flush();
         ois.readObject();
 
-        FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length());
+        FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true);
 
         done();
     }
@@ -136,8 +151,6 @@ public class Client {
         oos.writeObject(fileToDelete.toString());
         oos.flush();
         ois.readObject();
-
-        done();
     }
 
     private static void renameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
@@ -155,8 +168,6 @@ public class Client {
         oos.writeObject(fileRenameTo.toString());
         oos.flush();
         ois.readObject();
-
-        done();
     }
 
     private static void done() throws Exception {
@@ -164,17 +175,6 @@ public class Client {
         oos.flush();
         System.out.println("client sync finished ...");
     }
-
-//    private static void registerRecursive(Path root) throws IOException {
-//        // register all subfolders
-//        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-//            @Override
-//            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-//                dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
-//                return FileVisitResult.CONTINUE;
-//            }
-//        });
-//    }
 
 //        // sendMessage thread
 //        Thread sendMessage = new Thread(new Runnable()
