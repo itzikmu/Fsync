@@ -15,7 +15,9 @@ public class FolderSync {
     public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen, boolean syncStart) throws Exception {
         if (syncStart) {
             System.out.println("Starting to sync!");
-        } else {
+        }
+        else {
+            System.out.println("check if exist file " + dir.getName() + " on the other side" );
             oos.writeObject(new String(dir.getAbsolutePath().substring(baseFolderLen)));
             oos.flush();
 
@@ -25,25 +27,30 @@ public class FolderSync {
             oos.writeObject(new Boolean(isDirectory)); //Boolean isDirectory
             oos.flush();
 
-            if (isDirectory) {
+            if (isDirectory) {  // isDirectory
                 if (!(Boolean) ois.readObject()) { // dir NOT exist on the other side
+                    System.out.println("dir NOT exist on the other side!");
                     oos.writeObject(new Boolean(true)); // send ok
                     oos.flush();
                 }
 
-            } else {
+            }
+            else {          // isFile
                 if (!(Boolean) ois.readObject()) { // File NOT exist on the other side
+                    System.out.println("File NOT exist on the other side!");
                     oos.writeObject(new Boolean(true)); // ok
                     oos.flush();
 
                     Transfer.sendFile(sock, oos, dir);
 
-                } else {
+                }
+                else {
                     oos.writeObject(new Long(dir.lastModified())); // send last modified
                     oos.flush();
 
                     if ((Boolean) ois.readObject()) { // send update
                         Transfer.sendFile(sock, oos, dir);
+
 
                     } else { // DO NOTHING!
                         //System.out.println("Everything is UP TO DATE!");
@@ -63,7 +70,7 @@ public class FolderSync {
     public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) {
         try {
             String action = (String) ois.readObject();
-            System.out.println("action: " + action);
+            System.out.println("action: " + action+"start");
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
@@ -81,6 +88,7 @@ public class FolderSync {
                 oos.flush();
                 modifyUpdate(sock, ois, oos);
             }
+            System.out.println("action: " + action +"End");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -91,7 +99,7 @@ public class FolderSync {
 
         while (!isDone) {
             String path = (String) ois.readObject(); // dir name
-
+            System.out.println("got file from other side: " + path);
             if (path.equals(DONE)) {
                 System.out.println("getUpdate done");
                 isDone = true;

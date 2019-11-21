@@ -48,7 +48,7 @@ class ClientHandler implements Runnable {
 //                    break;
 //                }
 
-                System.out.println("Waiting for Client update...");
+                System.out.println(name + ": Waiting for Client update...");
                 FolderSync.getUpdate(socket, ois, oos);
 
                 // search for the recipient in the connected devices list.

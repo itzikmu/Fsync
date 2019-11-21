@@ -25,6 +25,9 @@ public class Client {
     private static ObjectInputStream ois;
     private static String baseDir;
     private static WatchService watcher;
+    private  static Object readObject;
+    private  static Thread watcherThread;
+    private  static Thread readThread;
 
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
@@ -48,85 +51,119 @@ public class Client {
         oos = new ObjectOutputStream(s.getOutputStream());
         ois = new ObjectInputStream(s.getInputStream());
 
+
         FolderSync.getUpdate(s, ois, oos);
+        runReadThread();
+
         syncServer();
 
-        try {
-            // Creates a instance of WatchService.
-            watcher = FileSystems.getDefault().newWatchService();
+        runReadThread();
+        runWatcherThread();
 
-            // Registers the logDir below with a watch service.
-            Path folderDir = Paths.get(baseDir);
-            folderDir.register(watcher, new WatchEvent.Kind<?>[]{
-                            ENTRY_RENAME_FROM,
-                            ENTRY_RENAME_TO,
-                            ENTRY_CREATE,
-                            ENTRY_DELETE,
-                            ENTRY_MODIFY
-                    },
-                    new WatchEvent.Modifier<?>[]{
-                            ExtendedWatchEventModifier.ACCURATE,
-                            ExtendedWatchEventModifier.FILE_TREE
-                    }
-            );
 
-//            int clientFilesCount = FolderSync.fileCount(baseDirFolder);
-//            System.out.println(baseDir + " has " + clientFilesCount + " files");
+    }
+    private static void runReadThread() throws Exception {
 
-            // Monitor the logDir at listen for change notification.
-            Path pathRenameFrom = null, pathRenameTo = null;
-            while (true) {
-
-                WatchKey key = watcher.take();
-
-                for (WatchEvent<?> event : key.pollEvents()) {
-
-                    WatchEvent.Kind<?> kind = event.kind();
-
-                    // Retrieve the file name associated with the event
-                    Path fileEntry = (Path) event.context();
-
-                    if (kind == ExtendedWatchEventKind.KEY_INVALID) {
-                        System.out.println("continue.................");
-                        continue;
-                    }
-
-                    // NOW send 'Im ALlive' TODO: 19/11/2019 send client logout
-                    //keepAlive();
-
-                    if (ENTRY_CREATE.equals(kind) ||
-                            ENTRY_MODIFY.equals(kind)) {
-                        System.out.println("Entry " + fileEntry.toString() + " was modified on log dir.");
-                        syncServer();
-
-                    } else if (ENTRY_DELETE.equals(kind)) {
-                        System.out.println("Entry " + fileEntry.toString() + " was deleted from log dir.");
-                        deleteFile(fileEntry);
-
-                    } else if (ENTRY_RENAME_FROM.equals(kind)) {
-                        System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
-                        pathRenameFrom = fileEntry;
-
-                    } else if (ENTRY_RENAME_TO.equals(kind)) {
-                        System.out.println("Entry " + fileEntry.toString() + " was renamed on log dir.");
-                        pathRenameTo = fileEntry;
-                        renameFile(pathRenameFrom, pathRenameTo);
-                    } else
-                        System.out.println("continue !!!!!");
+        readThread = new Thread() {
+            public void run() {
+                try {
+                    System.out.println("ReadThread:listening for server messages");
+                    readObject = ois.readObject();
+                    System.out.println("ReadThread:got message from server " + readObject.toString());
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-                key.reset();
             }
+        };
 
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+
+        readThread.start();
+
     }
 
-    private static void keepAlive() throws Exception {
-        oos.writeObject(new String("I'm Alive"));
-        oos.flush();
-        ois.readObject();
+
+    private static void runWatcherThread() throws Exception {
+
+         watcherThread = new Thread() {
+            public void run() {
+                try {
+                    // Creates a instance of WatchService.
+                    watcher = FileSystems.getDefault().newWatchService();
+
+                    // Registers the logDir below with a watch service.
+                    Path folderDir = Paths.get(baseDir);
+                    folderDir.register(watcher, new WatchEvent.Kind<?>[]{
+                                    ENTRY_RENAME_FROM,
+                                    ENTRY_RENAME_TO,
+                                    ENTRY_CREATE,
+                                    ENTRY_DELETE,
+                                    ENTRY_MODIFY
+                            },
+                            new WatchEvent.Modifier<?>[]{
+                                    ExtendedWatchEventModifier.ACCURATE,
+                                    ExtendedWatchEventModifier.FILE_TREE
+                            }
+                    );
+
+
+
+                    // Monitor the logDir at listen for change notification.
+                    Path pathRenameFrom = null, pathRenameTo = null;
+                    while (true) {
+
+                        WatchKey key = watcher.take();
+
+                        for (WatchEvent<?> event : key.pollEvents()) {
+
+                            WatchEvent.Kind<?> kind = event.kind();
+
+                            // Retrieve the file name associated with the event
+                            Path fileEntry = (Path) event.context();
+
+                            if (kind == ExtendedWatchEventKind.KEY_INVALID) {
+                                System.out.println("continue.................");
+                                continue;
+                            }
+
+                            // NOW send 'Im ALlive' TODO: 19/11/2019 send client logout
+                            //keepAlive();
+
+                            if (ENTRY_CREATE.equals(kind) ||
+                                    ENTRY_MODIFY.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
+                                syncServer();
+
+                            } else if (ENTRY_DELETE.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
+                                deleteFile(fileEntry);
+
+                            } else if (ENTRY_RENAME_FROM.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                pathRenameFrom = fileEntry;
+
+                            } else if (ENTRY_RENAME_TO.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                pathRenameTo = fileEntry;
+                                renameFile(pathRenameFrom, pathRenameTo);
+                            } else
+                                System.out.println("continue !!!!!");
+                        }
+                        key.reset();
+                        runReadThread();
+
+                    }
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+
+
+        watcherThread.start();
+
     }
+
 
 
     private static void syncServer() throws Exception {
@@ -134,7 +171,9 @@ public class Client {
 
         oos.writeObject(new String(FolderSync.MODIFY));
         oos.flush();
-        ois.readObject();
+        while(readObject == null)
+        { ; }
+
 
         FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true);
 

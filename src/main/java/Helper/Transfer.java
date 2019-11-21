@@ -6,6 +6,7 @@ import java.net.Socket;
 public class Transfer {
 
     public static void sendFile(Socket sock, ObjectOutputStream oos, File dir) throws Exception {
+        System.out.println("send " + dir.getName().toString()+ " start");
         byte[] buff = new byte[sock.getSendBufferSize()];
 
         int bytesRead = 0;
@@ -18,9 +19,11 @@ public class Transfer {
 
         in.close();
         oos.flush(); // after sending a file you need to close the socket and reopen one.
+        System.out.println("send " + dir.getName().toString()+ " end");
     }
 
     public static void receiveFile(Socket sock, ObjectInputStream ois, File dir) throws Exception {
+        System.out.println("receive " + dir.getName().toString()+ " start");
         FileOutputStream wr = new FileOutputStream(dir);
 
         byte[] outBuffer = new byte[sock.getReceiveBufferSize()];
@@ -33,6 +36,7 @@ public class Transfer {
 
         wr.flush();
         wr.close();
+        System.out.println("receive " + dir.getName().toString()+ " end");
     }
 
 }
