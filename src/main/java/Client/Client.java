@@ -25,9 +25,12 @@ public class Client {
     private static ObjectInputStream ois;
     private static String baseDir;
     private static WatchService watcher;
-    private  static Object readObject;
+    private  static volatile  Object readObject;
     private  static Thread watcherThread;
     private  static Thread readThread;
+    private  static volatile boolean needToGetUpdate = false;
+
+
 
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
@@ -52,14 +55,31 @@ public class Client {
         ois = new ObjectInputStream(s.getInputStream());
 
 
+        // first two way sync
+        ois.readObject();
         FolderSync.getUpdate(s, ois, oos, "MODIFY");
         runReadThread();
-
         syncServer();
+
+
+        needToGetUpdate = false;
 
         runReadThread();
         runWatcherThread();
 
+        while(true)
+        {
+            Thread.sleep(100);
+            if(needToGetUpdate && readObject !=null)
+            {
+                System.out.println("needToGetUpdate");
+                FolderSync.getUpdate(s, ois, oos, (String)readObject);
+                Thread.sleep(100);
+                needToGetUpdate=false;
+                readObject = null;
+                runReadThread();
+            }
+        }
 
     }
     private static void runReadThread() throws Exception {
@@ -68,8 +88,13 @@ public class Client {
             public void run() {
                 try {
                     System.out.println("ReadThread:listening for server messages");
-                    readObject = ois.readObject();
-                    System.out.println("ReadThread:got message from server " + readObject.toString());
+                    Object temp = ois.readObject();
+                    System.out.println("ReadThread:got message from server " + temp.toString());
+                    if (temp instanceof String) {
+                        needToGetUpdate = true;
+                    }
+                    readObject = temp;
+
                 } catch (java.net.SocketException e) {
                     System.out.println("socket is closed " + e.getMessage());
 
@@ -114,49 +139,59 @@ public class Client {
 
                     // Monitor the logDir at listen for change notification.
                     Path pathRenameFrom = null, pathRenameTo = null;
+                    WatchKey key;
                     while (true) {
+                        System.out.println("watchdog is listening to folder " );
+                        key  = watcher.take();
+                        System.out.println("watchdog found new change" );
 
-                        WatchKey key = watcher.take();
-
-                        for (WatchEvent<?> event : key.pollEvents()) {
-
-                            WatchEvent.Kind<?> kind = event.kind();
-
-                            // Retrieve the file name associated with the event
-                            Path fileEntry = (Path) event.context();
-
-                            if (kind == ExtendedWatchEventKind.KEY_INVALID) {
-                                System.out.println("continue.................");
-                                continue;
-                            }
-
-                            // NOW send 'Im ALlive' TODO: 19/11/2019 send client logout
-                            //keepAlive();
-
-                            if (ENTRY_CREATE.equals(kind) ||
-                                    ENTRY_MODIFY.equals(kind)) {
-                                System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
-                                syncServer();
-
-                            } else if (ENTRY_DELETE.equals(kind)) {
-                                System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
-                                deleteFile(fileEntry);
-
-                            } else if (ENTRY_RENAME_FROM.equals(kind)) {
-                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
-                                pathRenameFrom = fileEntry;
-
-                            } else if (ENTRY_RENAME_TO.equals(kind)) {
-                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
-                                pathRenameTo = fileEntry;
-                                renameFile(pathRenameFrom, pathRenameTo);
-                            } else
-                                System.out.println("continue !!!!!");
+                        while (needToGetUpdate) {
+                            System.out.println("watchdog reset key watcher" );
+                            key.reset();
+                            key  = watcher.take();
                         }
-                        key.reset();
-                        runReadThread();
 
-                    }
+                            for (WatchEvent<?> event : key.pollEvents()) {
+
+                                WatchEvent.Kind<?> kind = event.kind();
+
+                                // Retrieve the file name associated with the event
+                                Path fileEntry = (Path) event.context();
+
+                                if (kind == ExtendedWatchEventKind.KEY_INVALID) {
+                                    System.out.println("continue.................");
+                                    continue;
+                                }
+
+                                if (ENTRY_CREATE.equals(kind) ||
+                                        ENTRY_MODIFY.equals(kind)) {
+                                    System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
+                                    syncServer();
+
+                                } else if (ENTRY_DELETE.equals(kind)) {
+                                    System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
+                                    deleteFile(fileEntry);
+
+                                } else if (ENTRY_RENAME_FROM.equals(kind)) {
+                                    System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                    pathRenameFrom = fileEntry;
+
+                                } else if (ENTRY_RENAME_TO.equals(kind)) {
+                                    System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                    pathRenameTo = fileEntry;
+                                    renameFile(pathRenameFrom, pathRenameTo);
+                                } else {
+                                    System.out.println("continue !!!!!");
+                                }
+
+                                runReadThread();
+                            }
+                            key.reset();
+
+                        }
+
+
+
 
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -172,38 +207,50 @@ public class Client {
 
 
     private static void syncServer() throws Exception {
+        System.out.println("syncServer start");
         File baseDirFolder = new File(baseDir);
 
         oos.writeObject(new String(FolderSync.MODIFY));
         oos.flush();
         while(readObject == null)
         { ; }
+        readObject=null;
 
-
+        System.out.println("sendUpdate " +baseDirFolder +" start");
         FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true);
+        System.out.println("sendUpdate " +baseDirFolder +" end");
 
-        done();
+        oos.writeObject(new String(FolderSync.DONE));
+        oos.flush();
+        System.out.println("client sync finished ...");
     }
 
     private static void deleteFile(Path pathToDelete) throws Exception {
         File fileToDelete = new File(pathToDelete.toString());
+        System.out.println("deleteFile  start" + pathToDelete.toString());
 
         oos.writeObject(new String(FolderSync.DELETE));
         oos.flush();
-        ois.readObject();
+        while(readObject == null)
+        { ; }
+        readObject=null;
 
         oos.writeObject(fileToDelete.toString());
         oos.flush();
         ois.readObject();
+        System.out.println("deleteFile end");
     }
 
     private static void renameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
         File fileRenameFrom = new File(pathRenameFrom.toString());
         File fileRenameTo = new File(pathRenameTo.toString());
+        System.out.println("renameFile from" + pathRenameFrom.toString() + " to "  +pathRenameTo.toString() );
 
         oos.writeObject(new String(FolderSync.RENAME));
         oos.flush();
-        ois.readObject();
+        while(readObject == null)
+        { ; }
+        readObject=null;
 
         oos.writeObject(fileRenameFrom.toString());
         oos.flush();
@@ -212,56 +259,9 @@ public class Client {
         oos.writeObject(fileRenameTo.toString());
         oos.flush();
         ois.readObject();
+        System.out.println("fileRename from server end");
     }
 
-    private static void done() throws Exception {
-        oos.writeObject(new String(FolderSync.DONE));
-        oos.flush();
-        System.out.println("client sync finished ...");
-    }
-
-//        // sendMessage thread
-//        Thread sendMessage = new Thread(new Runnable()
-//        {
-//            @Override
-//            public void run() {
-//                while (true) {
-//
-//                    // read the message to deliver.
-//                    String msg = scn.nextLine();
-//
-//                    try {
-//                        // write on the output stream
-//                        dos.writeUTF(msg);
-//                    } catch (IOException e) {
-//                        e.printStackTrace();
-//                    }
-//                }
-//            }
-//        });
-//
-//        // readMessage thread
-//        Thread readMessage = new Thread(new Runnable()
-//        {
-//            @Override
-//            public void run() {
-//
-//                while (true) {
-//                    try {
-//                        // read the message sent to this client
-//                        String msg = dis.readUTF();
-//                        System.out.println(msg);
-//                    } catch (IOException e) {
-//
-//                        e.printStackTrace();
-//                    }
-//                }
-//            }
-//        });
-//
-//        sendMessage.start();
-//        readMessage.start();
-//    )
 
 
 }

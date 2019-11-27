@@ -36,7 +36,7 @@ public class Server {
             baseDirFolder.mkdir();
 
         System.setProperty("user.dir", baseDir);
-
+         UpdateParams updateParams = new UpdateParams();
         // running infinite loop for getting client request
         while (true) {
             // Accept the incoming request
@@ -49,7 +49,7 @@ public class Server {
 
             // Create a new handler object for handling this request.
             System.out.println("Creating a new handler for this client...");
-            ClientHandler mtch = new ClientHandler(sock, "client " + i, ois, oos);
+            ClientHandler mtch = new ClientHandler(sock, "client " + i, ois, oos, updateParams);
 
             // Create a new Thread with this object.
             Thread t = new Thread(mtch);
