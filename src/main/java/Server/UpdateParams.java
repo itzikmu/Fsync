@@ -1,7 +1,5 @@
 package Server;
 
-import name.pachler.nio.file.Path;
-
 public class UpdateParams {
 
     public  int numOfClientsNotUpdated;
@@ -17,9 +15,11 @@ public class UpdateParams {
     public  synchronized void decreaseNotUpdatedClientsCounter(){
         numOfClientsNotUpdated--;
     }
+
     public  synchronized void setNumOfClientsToUpdate(int num){
         numOfClientsNotUpdated = num;
     }
+
     public  synchronized void GetParamsUpdate(UpdateParams newParams){
         if(newParams != null)
         {

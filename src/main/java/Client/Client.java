@@ -46,7 +46,8 @@ public class Client {
         System.setProperty("user.dir", baseDir);
 
         // getting localhost ip
-        InetAddress ip = InetAddress.getByName("localhost");
+//        InetAddress ip = InetAddress.getByName("localhost");
+        String ip = args[1];
 
         // establish the connection
         s = new Socket(ip, ServerPort);
@@ -140,6 +141,7 @@ public class Client {
                     Path pathRenameFrom = null, pathRenameTo = null;
                     WatchKey key;
                     boolean needToSyncClient = false;
+
                     while (true) {
                         System.out.println("watchdog is listening to folder " );
                         key  = watcher.take();

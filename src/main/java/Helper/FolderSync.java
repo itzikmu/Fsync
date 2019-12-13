@@ -1,10 +1,13 @@
 package Helper;
 
 import Server.UpdateParams;
+import org.apache.commons.io.FileUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Vector;
 
 public class FolderSync {
 
@@ -17,10 +20,9 @@ public class FolderSync {
     public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen, boolean syncStart) throws Exception {
         if (syncStart) {
             System.out.println("Starting to sync!");
-        }
-        else {
-          //  System.out.println("check if exist file " + dir.getName() + " on the other side" );
-            oos.writeObject(dir.getAbsolutePath().substring(baseFolderLen+1));
+        } else {
+            //  System.out.println("check if exist file " + dir.getName() + " on the other side" );
+            oos.writeObject(dir.getAbsolutePath().substring(baseFolderLen + 1));
             oos.flush();
 
             ois.readObject(); // other side get the dir name
@@ -31,22 +33,20 @@ public class FolderSync {
 
             if (isDirectory) {  // isDirectory
                 if (!(Boolean) ois.readObject()) { // dir NOT exist on the other side
-               //     System.out.println("dir NOT exist on the other side!");
+                    //     System.out.println("dir NOT exist on the other side!");
                     oos.writeObject(new Boolean(true)); // send ok
                     oos.flush();
                 }
 
-            }
-            else {          // isFile
+            } else {          // isFile
                 if (!(Boolean) ois.readObject()) { // File NOT exist on the other side
-                  //  System.out.println("File NOT exist on the other side!");
+                    //  System.out.println("File NOT exist on the other side!");
                     oos.writeObject(new Boolean(true)); // ok
                     oos.flush();
                     System.out.println("sendUpdate-notExist ");
                     Transfer.sendFile(sock, oos, dir);
 
-                }
-                else {
+                } else {
                     oos.writeObject(new Long(dir.lastModified())); // send last modified
                     oos.flush();
 
@@ -70,32 +70,28 @@ public class FolderSync {
         }
     }
 
-    public static UpdateParams getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos , String action) {
+    public static UpdateParams getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String action) {
         try {
 
-            System.out.println("getUpdate :  " + action+" start");
+            System.out.println("getUpdate :  " + action + " start");
             UpdateParams params;
 
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
                 params = getRenameUpdate(sock, ois, oos);
-            }
-
-            else if (action.equals(DELETE)) {
+            } else if (action.equals(DELETE)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
                 params = getDeleteUpdate(sock, ois, oos);
-            }
-
-            else  { // modify
+            } else { // modify
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
                 getModifyUpdate(sock, ois, oos);
                 params = new UpdateParams();
                 params.updateType = "MODIFY";
             }
-            System.out.println("getUpdate: " + action +" End");
+            System.out.println("getUpdate: " + action + " End");
             return params;
 
         } catch (Exception e) {
@@ -163,12 +159,12 @@ public class FolderSync {
     }
 
     private static UpdateParams getRenameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-        String oldName =  (String) ois.readObject();
-        File oldFile = new File( System.getProperty("user.dir") + "\\" +oldName);
+        String oldName = (String) ois.readObject();
+        File oldFile = new File(System.getProperty("user.dir") + "\\" + oldName);
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
-        String newName =  (String) ois.readObject();
-        File newFile = new File(System.getProperty("user.dir") + "\\" +newName);
+        String newName = (String) ois.readObject();
+        File newFile = new File(System.getProperty("user.dir") + "\\" + newName);
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
 
@@ -192,25 +188,33 @@ public class FolderSync {
     }
 
     private static UpdateParams getDeleteUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-
-        String fileName =  (String) ois.readObject();
+        String fileName = (String) ois.readObject();
         File fileToDel = new File(System.getProperty("user.dir") + "\\" + fileName);
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
         UpdateParams params = new UpdateParams();
-        params.updateType = "DELETE";
-        params.fileToDelete = fileName;
 
-        if (fileToDel.delete()) {
-            System.out.println("File deleted successfully");
+
+        if (fileToDel.isDirectory()) {
+            try {
+                FileUtils.deleteDirectory(fileToDel);
+                System.out.println("Folder deleted successfully");
+                params.updateType = "DELETE";
+                params.fileToDelete = fileName;
+            } catch (IOException ex) {
+                System.out.println(ex);
+            }
         } else {
-            System.out.println("Failed to delete the file");
+            if (fileToDel.delete()) {
+                System.out.println("File deleted successfully");
+                params.updateType = "DELETE";
+                params.fileToDelete = fileName;
+            } else {
+                System.out.println("Failed to delete the file");
+            }
         }
+
         return params;
     }
-
-
-
-
 
 }

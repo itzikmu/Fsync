@@ -9,7 +9,8 @@
         <module name="fsync" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
+    <bytecodeTargetLevel target="1.8">
+      <module name="Fsync" target="1.8" />
       <module name="fsync" target="1.8" />
     </bytecodeTargetLevel>
   </component>
