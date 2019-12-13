@@ -6,9 +6,9 @@ public class UpdateParams {
 
     public  int numOfClientsNotUpdated;
     public  String updateType;
-    public  Path fileToDelete;
-    public  Path fileToRenameFrom;
-    public  Path getFileToRenameTo;
+    public  String fileToDelete;
+    public  String fileToRenameFrom;
+    public  String getFileToRenameTo;
 
     public UpdateParams(){
         resetParams();
@@ -19,6 +19,23 @@ public class UpdateParams {
     }
     public  synchronized void setNumOfClientsToUpdate(int num){
         numOfClientsNotUpdated = num;
+    }
+    public  synchronized void GetParamsUpdate(UpdateParams newParams){
+        if(newParams != null)
+        {
+            updateType = newParams.updateType;
+
+            if(newParams.updateType == "RENAME")
+            {
+                fileToRenameFrom = newParams.fileToRenameFrom;
+                getFileToRenameTo = newParams.getFileToRenameTo;
+            }
+            else if (newParams.updateType == "DELETE")
+            {
+                fileToDelete = newParams.fileToDelete;
+            }
+        }
+
     }
 
 

@@ -1,7 +1,5 @@
 package Server;
 
-import Helper.FolderSync;
-
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -61,7 +59,7 @@ public class Server {
 
             // start the thread.
             t.start();
-            ClientHandler.TotalClientsCounter++;
+            ClientHandler.TotalClients++;
 
             // increment i for new client.
             // i is used for naming only, and can be replaced by any naming scheme

@@ -36,7 +36,6 @@ public class Client {
         System.out.println("Starting File Sync client!");
 
         System.out.println("Your baseDir is: " + args[0]);
-//        baseDir = "C:\\Temp\\TestFolder";
         baseDir = args[0];
 
         File baseDirFolder = new File(baseDir);
@@ -140,6 +139,7 @@ public class Client {
                     // Monitor the logDir at listen for change notification.
                     Path pathRenameFrom = null, pathRenameTo = null;
                     WatchKey key;
+                    boolean needToSyncClient = false;
                     while (true) {
                         System.out.println("watchdog is listening to folder " );
                         key  = watcher.take();
@@ -150,43 +150,43 @@ public class Client {
                             key.reset();
                             key  = watcher.take();
                         }
-
-                            for (WatchEvent<?> event : key.pollEvents()) {
-
-                                WatchEvent.Kind<?> kind = event.kind();
-
-                                // Retrieve the file name associated with the event
-                                Path fileEntry = (Path) event.context();
-
-                                if (kind == ExtendedWatchEventKind.KEY_INVALID) {
-                                    System.out.println("continue.................");
-                                    continue;
-                                }
-
-                                if (ENTRY_CREATE.equals(kind) ||
-                                        ENTRY_MODIFY.equals(kind)) {
-                                    System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
-                                    syncServer();
-
-                                } else if (ENTRY_DELETE.equals(kind)) {
-                                    System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
-                                    deleteFile(fileEntry);
-
-                                } else if (ENTRY_RENAME_FROM.equals(kind)) {
-                                    System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
-                                    pathRenameFrom = fileEntry;
-
-                                } else if (ENTRY_RENAME_TO.equals(kind)) {
-                                    System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
-                                    pathRenameTo = fileEntry;
-                                    renameFile(pathRenameFrom, pathRenameTo);
-                                } else {
-                                    System.out.println("continue !!!!!");
-                                }
-
-                                runReadThread();
+                        Thread.sleep(100);
+                        for (WatchEvent<?> event : key.pollEvents()) {
+                            WatchEvent.Kind<?> kind = event.kind();
+                            // Retrieve the file name associated with the event
+                            Path fileEntry = (Path) event.context();
+                            if (kind == ExtendedWatchEventKind.KEY_INVALID) {
+                                System.out.println("continue.................");
+                                continue;
                             }
-                            key.reset();
+                            needToSyncClient = false;
+                            if (ENTRY_CREATE.equals(kind) ||
+                                    ENTRY_MODIFY.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
+                                needToSyncClient = true;
+                            } else if (ENTRY_DELETE.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
+                                sendDeleteFile(fileEntry);
+                                runReadThread();
+                            } else if (ENTRY_RENAME_FROM.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                pathRenameFrom = fileEntry;
+                            } else if (ENTRY_RENAME_TO.equals(kind)) {
+                                System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
+                                pathRenameTo = fileEntry;
+                                sendRenameFile(pathRenameFrom, pathRenameTo);
+                                runReadThread();
+                            } else {
+                                System.out.println("continue !!!!!");
+                            }
+                        }
+
+                        if (needToSyncClient) {
+                            syncServer();
+                            runReadThread();
+                        }
+
+                        key.reset();
 
                         }
 
@@ -210,7 +210,7 @@ public class Client {
         System.out.println("syncServer start");
         File baseDirFolder = new File(baseDir);
 
-        oos.writeObject(new String(FolderSync.MODIFY));
+        oos.writeObject(FolderSync.MODIFY);
         oos.flush();
         while(readObject == null)
         { ; }
@@ -220,16 +220,16 @@ public class Client {
         FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true);
         System.out.println("sendUpdate " +baseDirFolder +" end");
 
-        oos.writeObject(new String(FolderSync.DONE));
+        oos.writeObject(FolderSync.DONE);
         oos.flush();
         System.out.println("client sync finished ...");
     }
 
-    private static void deleteFile(Path pathToDelete) throws Exception {
+    private static void sendDeleteFile(Path pathToDelete) throws Exception {
         File fileToDelete = new File(pathToDelete.toString());
         System.out.println("deleteFile  start" + pathToDelete.toString());
 
-        oos.writeObject(new String(FolderSync.DELETE));
+        oos.writeObject(FolderSync.DELETE);
         oos.flush();
         while(readObject == null)
         { ; }
@@ -241,12 +241,12 @@ public class Client {
         System.out.println("deleteFile end");
     }
 
-    private static void renameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
+    private static void sendRenameFile(Path pathRenameFrom, Path pathRenameTo) throws Exception {
         File fileRenameFrom = new File(pathRenameFrom.toString());
         File fileRenameTo = new File(pathRenameTo.toString());
         System.out.println("renameFile from" + pathRenameFrom.toString() + " to "  +pathRenameTo.toString() );
 
-        oos.writeObject(new String(FolderSync.RENAME));
+        oos.writeObject(FolderSync.RENAME);
         oos.flush();
         while(readObject == null)
         { ; }

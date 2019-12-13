@@ -1,5 +1,7 @@
 package Helper;
 
+import Server.UpdateParams;
+
 import java.io.*;
 import java.net.Socket;
 import java.util.Vector;
@@ -18,7 +20,7 @@ public class FolderSync {
         }
         else {
           //  System.out.println("check if exist file " + dir.getName() + " on the other side" );
-            oos.writeObject(new String(dir.getAbsolutePath().substring(baseFolderLen+1)));
+            oos.writeObject(dir.getAbsolutePath().substring(baseFolderLen+1));
             oos.flush();
 
             ois.readObject(); // other side get the dir name
@@ -68,36 +70,43 @@ public class FolderSync {
         }
     }
 
-    public static void getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos ,String action) {
+    public static UpdateParams getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos , String action) {
         try {
 
             System.out.println("getUpdate :  " + action+" start");
+            UpdateParams params;
+
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                renameUpdate(sock, ois, oos);
+                params = getRenameUpdate(sock, ois, oos);
             }
 
-            if (action.equals(DELETE)) {
+            else if (action.equals(DELETE)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                deleteUpdate(sock, ois, oos);
+                params = getDeleteUpdate(sock, ois, oos);
             }
 
-            if (action.equals(MODIFY)) {
+            else  { // modify
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                modifyUpdate(sock, ois, oos);
+                getModifyUpdate(sock, ois, oos);
+                params = new UpdateParams();
+                params.updateType = "MODIFY";
             }
-           System.out.println("getUpdate: " + action +" End");
+            System.out.println("getUpdate: " + action +" End");
+            return params;
+
         } catch (Exception e) {
             e.printStackTrace();
+            return null;
 
 
         }
     }
 
-    private static void modifyUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+    private static void getModifyUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
         Boolean isDone = false;
 
         while (!isDone) {
@@ -153,17 +162,24 @@ public class FolderSync {
         }
     }
 
-    private static void renameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-        File oldFile = new File( System.getProperty("user.dir") + "\\" + (String) ois.readObject());
+    private static UpdateParams getRenameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        String oldName =  (String) ois.readObject();
+        File oldFile = new File( System.getProperty("user.dir") + "\\" +oldName);
+        oos.writeObject(new Boolean(true)); //ok
+        oos.flush();
+        String newName =  (String) ois.readObject();
+        File newFile = new File(System.getProperty("user.dir") + "\\" +newName);
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
 
-        File newFile = new File(System.getProperty("user.dir") + "\\" + (String) ois.readObject());
-        oos.writeObject(new Boolean(true)); //ok
-        oos.flush();
+        System.out.println("oldFile: " + oldName);
+        System.out.println("newFile: " + newName);
 
-        System.out.println("oldFile: " + oldFile.toString());
-        System.out.println("newFile: " + newFile.toString());
+        UpdateParams params = new UpdateParams();
+        params.updateType = "RENAME";
+        params.fileToRenameFrom = oldName;
+        params.getFileToRenameTo = newName;
+
 
         if (oldFile.renameTo(newFile)) {
             System.out.println("Rename successful");
@@ -171,18 +187,26 @@ public class FolderSync {
         } else {
             System.out.println("Rename failed");
         }
+
+        return params;
     }
 
-    private static void deleteUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-        File fileToDel = new File(System.getProperty("user.dir") + "\\" + (String) ois.readObject());
+    private static UpdateParams getDeleteUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+
+        String fileName =  (String) ois.readObject();
+        File fileToDel = new File(System.getProperty("user.dir") + "\\" + fileName);
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
+        UpdateParams params = new UpdateParams();
+        params.updateType = "DELETE";
+        params.fileToDelete = fileName;
 
         if (fileToDel.delete()) {
             System.out.println("File deleted successfully");
         } else {
             System.out.println("Failed to delete the file");
         }
+        return params;
     }
 
 

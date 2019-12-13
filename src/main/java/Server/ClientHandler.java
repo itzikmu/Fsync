@@ -5,8 +5,6 @@ import name.pachler.nio.file.Path;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Scanner;
-import java.util.StringTokenizer;
 
 
 // ClientHandler class
@@ -15,7 +13,7 @@ class ClientHandler implements Runnable {
     private ObjectInputStream ois;
     private ObjectOutputStream oos;
     Socket socket;
-    static volatile int TotalClientsCounter;
+    static volatile int TotalClients;
     static volatile UpdateParams updateParams;
 
     boolean thisClientUpdated = false;
@@ -54,18 +52,33 @@ class ClientHandler implements Runnable {
             if (readObject != null) {  // this client handler got update request from his client
                 System.out.println(name +": got update request from client");
 
-                FolderSync.getUpdate(socket, ois, oos, (String) readObject);
-                updateParams.updateType = (String) readObject;
+                while(updateParams.numOfClientsNotUpdated > 0)
+                {
+                    ;
+                }
+                UpdateParams updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
+                updateParams.GetParamsUpdate(updateFromClient);
 
                 readObject = null;
                 thisClientUpdated = true;
-                System.out.println(name +": need to update " +(TotalClientsCounter-1) +" clients");
-                updateParams.setNumOfClientsToUpdate(TotalClientsCounter-1);
+                System.out.println(name +": need to update " +(TotalClients -1) +" clients");
+                updateParams.setNumOfClientsToUpdate(TotalClients -1);
 
                 runReadThread();
 
             } else if (!thisClientUpdated && updateParams.numOfClientsNotUpdated > 0) { // this client handler need to update his client after server got updated
-                syncClient(false);
+                    if (updateParams.updateType.equals("DELETE"))
+                    {
+                        sendDeleteFile(updateParams.fileToDelete);
+                    }
+                    else if (updateParams.updateType.equals("RENAME"))
+                    {
+                        sendRenameFile(updateParams.fileToRenameFrom, updateParams.getFileToRenameTo);
+                    }
+                    else{
+                        syncClient(false);
+                    }
+
                 System.out.println(name + ": updated this client. still " + (updateParams.numOfClientsNotUpdated - 1) + " to update");
                 thisClientUpdated = true;
                 updateParams.decreaseNotUpdatedClientsCounter();
@@ -75,8 +88,11 @@ class ClientHandler implements Runnable {
             }
             if((updateParams.numOfClientsNotUpdated==0) && thisClientUpdated )   // this is the last client updated , reset everything
             {
-                System.out.println(name + ": updated all clients");
-                updateParams.resetParams();
+                if(!updateParams.updateType.equals("")){
+                    System.out.println(name + ": updated all clients");
+                    updateParams.resetParams();
+                }
+
                 thisClientUpdated = false;
             }
 
@@ -119,7 +135,7 @@ class ClientHandler implements Runnable {
 
                 File baseDirFolder = new File(Server.baseDir);
 
-                oos.writeObject(new String(FolderSync.MODIFY));
+                oos.writeObject(FolderSync.MODIFY);
                 oos.flush();
                 if ( isFirstRun )
                 {
@@ -134,35 +150,54 @@ class ClientHandler implements Runnable {
                 readObject = null;
 
                 FolderSync.sendUpdate(socket, ois, oos, baseDirFolder, Server.baseDir.length(), true);
-                 readObject = null;
-                done();
 
+                 oos.writeObject(FolderSync.DONE);
+                 oos.flush();
+                 System.out.println("server sync finished ...");
+
+                 readObject = null;
 
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    private void deleteFile(Path pathToDelete) throws Exception {
-        File fileToDelete = new File(pathToDelete.toString());
-        System.out.println("deleteFile  start" + pathToDelete.toString());
+    private void sendDeleteFile(String pathToDelete) throws Exception {
 
-        oos.writeObject(new String(FolderSync.DELETE));
+        System.out.println("deleteFile  start" + pathToDelete);
+
+        oos.writeObject(FolderSync.DELETE);
         oos.flush();
         while(readObject == null)
         { ; }
         readObject=null;
 
-        oos.writeObject(fileToDelete.toString());
+        oos.writeObject(pathToDelete);
         oos.flush();
         ois.readObject();
         System.out.println("deleteFile end");
     }
 
+    private  void sendRenameFile(String pathRenameFrom, String pathRenameTo) throws Exception {
 
-    private void done() throws Exception {
-        oos.writeObject(new String(FolderSync.DONE));
+        System.out.println("renameFile from" + pathRenameFrom + " to "  +pathRenameTo );
+
+        oos.writeObject(FolderSync.RENAME);
         oos.flush();
-        System.out.println("server sync finished ...");
+        while(readObject == null)
+        { ; }
+        readObject=null;
+
+        oos.writeObject(pathRenameFrom);
+        oos.flush();
+        ois.readObject();
+
+        oos.writeObject(pathRenameTo);
+        oos.flush();
+        ois.readObject();
+        System.out.println("fileRename from server end");
     }
+
+
+
 }
