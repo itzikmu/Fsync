@@ -149,7 +149,7 @@ class ClientHandler implements Runnable {
 
     private void syncClient(boolean isFirstRun) {
         try {
-
+            System.out.println(name +": full syncing client started");
             File baseDirFolder = new File(Server.baseDir);
 
             oos.writeObject(FolderSync.MODIFY);
@@ -168,7 +168,7 @@ class ClientHandler implements Runnable {
 
             oos.writeObject(FolderSync.DONE);
             oos.flush();
-            System.out.println("server sync finished ...");
+            System.out.println(name +": full syncing client finished");
 
             readObject = null;
 
@@ -188,11 +188,11 @@ class ClientHandler implements Runnable {
         }
 
         for ( String fileName : filesToDelete) {
-            System.out.println("deletingFile" + fileName);
+            System.out.println(name +": deleting File: " + fileName + " started");
             oos.writeObject(fileName);
             oos.flush();
             ois.readObject();
-            System.out.println("deletingFile" + fileName + " ended");
+            System.out.println(name +":deletingFile: " + fileName + " ended");
         }
 
         oos.writeObject(FolderSync.DONE);
@@ -206,7 +206,7 @@ class ClientHandler implements Runnable {
 
     private void sendRenameFile(String pathRenameFrom, String pathRenameTo) throws Exception {
 
-        System.out.println("renameFile from" + pathRenameFrom + " to " + pathRenameTo);
+        System.out.println(name +": renameFile from" + pathRenameFrom + " to " + pathRenameTo + " start");
 
         oos.writeObject(FolderSync.RENAME);
         oos.flush();
@@ -222,7 +222,7 @@ class ClientHandler implements Runnable {
         oos.writeObject(pathRenameTo);
         oos.flush();
         ois.readObject();
-        System.out.println("fileRename from server end");
+        System.out.println(name +": renameFile from" + pathRenameFrom + " to " + pathRenameTo + " end");
     }
 
 
