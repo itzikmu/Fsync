@@ -70,20 +70,20 @@ public class FolderSync {
         }
     }
 
-    public static UpdateParams getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String action) {
+    public static UpdateParams getUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String action , String name) {
         try {
 
-            System.out.println("getUpdate :  " + action + " start");
+            System.out.println(name + ": getUpdate :  " + action + " start");
             UpdateParams params;
 
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                params = getRenameUpdate(sock, ois, oos);
+                params = getRenameUpdate( ois, oos);
             } else if (action.equals(DELETE)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                params = getDeleteUpdate(sock, ois, oos);
+                params = getDeleteUpdate( ois, oos);
             } else { // modify
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
@@ -91,7 +91,7 @@ public class FolderSync {
                 params = new UpdateParams();
                 params.updateType = "MODIFY";
             }
-            System.out.println("getUpdate: " + action + " End");
+            System.out.println(name + ": getUpdate: " + action + " End");
             return params;
 
         } catch (Exception e) {
@@ -158,7 +158,7 @@ public class FolderSync {
         }
     }
 
-    private static UpdateParams getRenameUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+    private static UpdateParams getRenameUpdate(ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
         String oldName = (String) ois.readObject();
         File oldFile = new File(System.getProperty("user.dir") + "\\" + oldName);
         oos.writeObject(new Boolean(true)); //ok
@@ -172,7 +172,7 @@ public class FolderSync {
         System.out.println("newFile: " + newName);
 
         UpdateParams params = new UpdateParams();
-        params.updateType = "RENAME";
+        params.updateType = RENAME;
         params.fileToRenameFrom = oldName;
         params.getFileToRenameTo = newName;
 
@@ -181,39 +181,50 @@ public class FolderSync {
             System.out.println("Rename successful");
 
         } else {
-            System.out.println("Rename failed");
+            System.out.println("Rename failed: from " +oldName + " to " + newName );
         }
 
         return params;
     }
 
-    private static UpdateParams getDeleteUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
-        String fileName = (String) ois.readObject();
-        File fileToDel = new File(System.getProperty("user.dir") + "\\" + fileName);
-        oos.writeObject(new Boolean(true)); //ok
-        oos.flush();
+    private static UpdateParams getDeleteUpdate(ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+        boolean isDone = false;
         UpdateParams params = new UpdateParams();
 
-
-        if (fileToDel.isDirectory()) {
-            try {
-                FileUtils.deleteDirectory(fileToDel);
-                System.out.println("Folder deleted successfully");
-                params.updateType = "DELETE";
-                params.fileToDelete = fileName;
-            } catch (IOException ex) {
-                System.out.println(ex);
+        while (!isDone) {
+            String fileName = (String) ois.readObject();
+            System.out.println("got file to delete from other side: " + fileName);
+            if (fileName.equals(DONE)) {
+                System.out.println("all deleting done");
+                isDone = true;
+                break;
             }
-        } else {
-            if (fileToDel.delete()) {
-                System.out.println("File deleted successfully");
-                params.updateType = "DELETE";
-                params.fileToDelete = fileName;
+
+
+            File fileToDel = new File(System.getProperty("user.dir") + "\\" + fileName);
+            oos.writeObject(new Boolean(true)); //ok
+            oos.flush();
+
+
+
+            if (fileToDel.isDirectory()) {
+                try {
+                    FileUtils.deleteDirectory(fileToDel);
+                    params.updateType = DELETE;
+                    params.filesToDelete.add(fileName);
+                } catch (IOException ex) {
+                    System.out.println("Failed to delete the file: " + fileName);
+                    System.out.println(ex);
+                }
             } else {
-                System.out.println("Failed to delete the file");
+                if (fileToDel.delete()) {
+                    params.updateType = DELETE;
+                    params.filesToDelete.add(fileName);
+                } else {
+                    System.out.println("Failed to delete the file: " + fileName);
+                }
             }
         }
-
         return params;
     }
 

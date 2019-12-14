@@ -45,7 +45,7 @@ public class Server {
 
             // Create a new handler object for handling this request.
             System.out.println("Creating a new handler for this client...");
-            ClientHandler mtch = new ClientHandler(sock, "client " + i, ois, oos, updateParams);
+            ClientHandler mtch = new ClientHandler(sock, "client " + (i+1), ois, oos, updateParams);
 
             // Create a new Thread with this object.
             Thread t = new Thread(mtch);

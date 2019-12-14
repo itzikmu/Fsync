@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.List;
 
 
 // ClientHandler class
@@ -43,7 +44,7 @@ class ClientHandler implements Runnable {
             syncClient(true);
 
             readObject = ois.readObject();
-            UpdateParams updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
+            UpdateParams updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject , name);
             updateParams.GetParamsUpdate(updateFromClient);
             System.out.println(name + ": need to update " + (TotalClients - 1) + " clients");
             updateParams.setNumOfClientsToUpdate(TotalClients - 1);
@@ -55,50 +56,57 @@ class ClientHandler implements Runnable {
 
             while (!clientDone) {
 
-                Thread.sleep(100);
-
                 if (readObject != null) {  // this client handler got update request from his client
                     System.out.println(name + ": got update request from client");
+
+
+                    updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject , name);
+                    updateParams.GetParamsUpdate(updateFromClient);
+
+                    readObject = null;
+                    System.out.println(name + ": need to update " + (TotalClients - 1) + " clients");
+                    updateParams.setNumOfClientsToUpdate(TotalClients - 1);
 
                     while (updateParams.numOfClientsNotUpdated > 0) {
                         ;
                     }
-                    updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
-                    updateParams.GetParamsUpdate(updateFromClient);
-
-                    readObject = null;
-                    thisClientUpdated = true;
-                    System.out.println(name + ": need to update " + (TotalClients - 1) + " clients");
-                    updateParams.setNumOfClientsToUpdate(TotalClients - 1);
 
                     runReadThread();
 
-                } else if (!thisClientUpdated && updateParams.numOfClientsNotUpdated > 0) { // this client handler need to update his client after server got updated
+                } else if (updateParams.numOfClientsNotUpdated > 0) { // this client handler need to update his client after server got updated
+                    System.out.println(name + ": going to update this client");
                     if (updateParams.updateType.equals("DELETE")) {
-                        sendDeleteFile(updateParams.fileToDelete);
+                        sendDeleteFile(updateParams.filesToDelete);
                     } else if (updateParams.updateType.equals("RENAME")) {
                         sendRenameFile(updateParams.fileToRenameFrom, updateParams.getFileToRenameTo);
-                    } else {
+                    } else if (updateParams.updateType.equals("MODIFY")){
                         syncClient(false);
+                    }else if (updateParams.updateType.equals("")){
+                       //do nothing
+                    }
+                    else{
+                        throw new Exception("bad update reason" + updateParams.updateType);
                     }
 
                     System.out.println(name + ": updated this client. still " + (updateParams.numOfClientsNotUpdated - 1) + " to update");
                     thisClientUpdated = true;
                     updateParams.decreaseNotUpdatedClientsCounter();
 
-                    runReadThread();
+                    while ((updateParams.numOfClientsNotUpdated > 0)) {
+                        ;
+                    }
 
-                }
-
-                if ((updateParams.numOfClientsNotUpdated == 0) && thisClientUpdated)   // this is the last client updated , reset everything
-                {
                     if (!updateParams.updateType.equals("")) {
                         System.out.println(name + ": updated all clients");
                         updateParams.resetParams();
                     }
 
-                    thisClientUpdated = false;
+                    runReadThread();
+
                 }
+
+
+                Thread.sleep(100);
 
             }
         } catch (java.net.SocketException e) {
@@ -108,7 +116,7 @@ class ClientHandler implements Runnable {
         } catch (Exception e) {
 
             e.printStackTrace();
-            System.out.println(name + "socket is dead");
+            System.out.println(name + ": socket is dead");
         }
     }
 
@@ -170,21 +178,30 @@ class ClientHandler implements Runnable {
         }
     }
 
-    private void sendDeleteFile(String pathToDelete) throws Exception {
+    private void sendDeleteFile(List<String> filesToDelete) throws Exception {
 
-        System.out.println("deleteFile  start" + pathToDelete);
 
         oos.writeObject(FolderSync.DELETE);
         oos.flush();
         while (readObject == null) {
             ;
         }
+
+        for ( String fileName : filesToDelete) {
+            System.out.println("deletingFile" + fileName);
+            oos.writeObject(fileName);
+            oos.flush();
+            ois.readObject();
+            System.out.println("deletingFile" + fileName + " ended");
+        }
+
+        oos.writeObject(FolderSync.DONE);
+        oos.flush();
+        System.out.println("delete finished. DONE");
+
         readObject = null;
 
-        oos.writeObject(pathToDelete);
-        oos.flush();
-        ois.readObject();
-        System.out.println("deleteFile end");
+
     }
 
     private void sendRenameFile(String pathRenameFrom, String pathRenameTo) throws Exception {

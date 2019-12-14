@@ -1,10 +1,13 @@
 package Server;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class UpdateParams {
 
     public  int numOfClientsNotUpdated;
     public  String updateType;
-    public  String fileToDelete;
+    public  List<String> filesToDelete;
     public  String fileToRenameFrom;
     public  String getFileToRenameTo;
 
@@ -32,7 +35,7 @@ public class UpdateParams {
             }
             else if (newParams.updateType == "DELETE")
             {
-                fileToDelete = newParams.fileToDelete;
+                filesToDelete = newParams.filesToDelete;
             }
         }
 
@@ -44,7 +47,7 @@ public class UpdateParams {
     {
         numOfClientsNotUpdated = 0;
         updateType = "";
-        fileToDelete = null;
+        filesToDelete = new ArrayList<String>();
         fileToRenameFrom= null;
         getFileToRenameTo= null;
 
