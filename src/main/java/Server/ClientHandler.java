@@ -59,7 +59,9 @@ class ClientHandler implements Runnable {
                 if (readObject != null) {  // this client handler got update request from his client
                     System.out.println(name + ": got update request from client");
 
-
+                    while (updateParams.numOfClientsNotUpdated > 0) {
+                        ;
+                    }
                     updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject , name);
                     updateParams.GetParamsUpdate(updateFromClient);
 

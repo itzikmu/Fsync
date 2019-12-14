@@ -174,7 +174,7 @@ public class Client {
 
                             if (ENTRY_CREATE.equals(kind) ||
                                     ENTRY_MODIFY.equals(kind)) {
-                                System.out.println("file " + fileEntry.toString() + " was modified on client dir.");
+
                                 needToSyncClient = true;
                             } else if (ENTRY_DELETE.equals(kind)) {
                                 System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
@@ -198,6 +198,7 @@ public class Client {
                             runReadThread();
                         }
                         else if (needToSyncClient && !needToRename) {
+                            System.out.println("some files were modified on client dir.");
                             syncServer();
                             runReadThread();
                         }
@@ -250,16 +251,16 @@ public class Client {
 
 
         for (String fileName : filesToDelete) {
-            System.out.println("deleteFile  start" + fileName);
+            System.out.println("send deleteFile: " + fileName+ " start" );
             oos.writeObject(fileName);
             oos.flush();
             ois.readObject();
-            System.out.println("deleteFile end" + fileName);
+            System.out.println("send deleteFile: " + fileName+ " end" );
         }
 
         oos.writeObject(FolderSync.DONE);
         oos.flush();
-        System.out.println("client delete finished ...");
+        System.out.println("all deletes sent");
 
         readObject=null;
     }
