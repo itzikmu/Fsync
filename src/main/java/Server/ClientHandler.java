@@ -130,7 +130,7 @@ class ClientHandler implements Runnable {
         readThread = new Thread() {
             public void run() {
                 try {
-                    System.out.println(name + ":listening for client messages");
+                    System.out.println(name + ": listening for client messages");
                     Object temp = ois.readObject();
                     System.out.println(name + ": got message from client " + temp.toString());
                     readObject = temp;
@@ -197,7 +197,7 @@ class ClientHandler implements Runnable {
 
         oos.writeObject(FolderSync.DONE);
         oos.flush();
-        System.out.println("delete finished. DONE");
+        System.out.println(name +":delete finished. DONE");
 
         readObject = null;
 

@@ -108,7 +108,7 @@ public class FolderSync {
         while (!isDone) {
             String path = (String) ois.readObject(); // dir name
             if (path.equals(DONE)) {
-                System.out.println("all modify done");
+                System.out.println(name + ": all modify done");
                 isDone = true;
                 break;
             }
@@ -175,10 +175,10 @@ public class FolderSync {
 
 
         if (oldFile.renameTo(newFile)) {
-            System.out.println(name + ":Rename successful: from " +oldName + " to " + newName );
+            System.out.println(name + ": Rename successful: from " +oldName + " to " + newName );
 
         } else {
-            System.out.println(name + ":Rename failed: from " +oldName + " to " + newName );
+            System.out.println(name + ": Rename failed: from " +oldName + " to " + newName );
         }
 
         return params;
@@ -191,7 +191,7 @@ public class FolderSync {
         while (!isDone) {
             String fileName = (String) ois.readObject();
             if (fileName.equals(DONE)) {
-                System.out.println(name + ":all deleting done");
+                System.out.println(name + ": all deleting done");
                 isDone = true;
                 break;
             }
@@ -208,19 +208,19 @@ public class FolderSync {
                     FileUtils.deleteDirectory(fileToDel);
                     params.updateType = DELETE;
                     params.filesToDelete.add(fileName);
-                    System.out.println(name + ":Delete successful: " +fileName);
+                    System.out.println(name + ": Delete successful: " +fileName);
 
                 } catch (IOException ex) {
-                    System.out.println(name + ":Delete failed: " +fileName );
+                    System.out.println(name + ": Delete failed: " +fileName );
                     System.out.println(ex);
                 }
             } else {
                 if (fileToDel.delete()) {
                     params.updateType = DELETE;
                     params.filesToDelete.add(fileName);
-                    System.out.println(name + ":Delete successful: " +fileName);
+                    System.out.println(name + ": Delete successful: " +fileName);
                 } else {
-                    System.out.println(name + ":Delete failed: " +fileName );
+                    System.out.println(name + ": Delete failed: " +fileName );
                 }
             }
         }
