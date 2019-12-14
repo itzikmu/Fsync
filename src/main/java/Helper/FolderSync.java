@@ -43,16 +43,18 @@ public class FolderSync {
                     //  System.out.println("File NOT exist on the other side!");
                     oos.writeObject(new Boolean(true)); // ok
                     oos.flush();
-                    System.out.println("sendUpdate-notExist ");
+                    System.out.println(name + ": send " + dir.getName() + " start");
                     Transfer.sendFile(sock, oos, dir);
+                    System.out.println(name + ": send " + dir.getName() + " end");
 
                 } else {
                     oos.writeObject(new Long(dir.lastModified())); // send last modified
                     oos.flush();
 
                     if ((Boolean) ois.readObject()) { // send update
-                        System.out.println("sendUpdate-fileModified " + dir.lastModified());
+                        System.out.println(name + ": send " + dir.getName() + " start");
                         Transfer.sendFile(sock, oos, dir);
+                        System.out.println(name + ": send " + dir.getName() + " end");
 
 
                     } else { // DO NOTHING!
@@ -125,12 +127,20 @@ public class FolderSync {
                 ois.readObject(); // ok
 
                 if (isDirectory) {
-                    System.out.println(name + ": modify-new folder: " + path );
-                    newFile.mkdir();
+                    System.out.println(name + ":make new folder" + path+ " start");
+                    if(newFile.mkdir()) {
+                        System.out.println(name + ":make new folder" + path+ " success");
+
+                    }
+                    else{
+                        System.out.println(name + ":make new folder" + path+ " failed");
+
+                    }
 
                 } else {
-                    System.out.println(name + ": modify-new file: " + path );
+                    System.out.println(name + ": receive " + path+ " start");
                     Transfer.receiveFile(sock, ois, newFile);
+                    System.out.println(name + ": receive " + path+ " end");
 
                 }
             } else if (!isDirectory) { // file already exist
