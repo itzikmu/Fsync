@@ -17,9 +17,9 @@ public class FolderSync {
     public static final String MODIFY = "MODIFY";
 
     // Process all files and directories under dir
-    public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen, boolean syncStart) throws Exception {
+    public static void sendUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, File dir, int baseFolderLen, boolean syncStart , String name) throws Exception {
         if (syncStart) {
-            System.out.println("Starting to sync!");
+            System.out.println(name + ": Starting to send update");
         } else {
             //  System.out.println("check if exist file " + dir.getName() + " on the other side" );
             oos.writeObject(dir.getAbsolutePath().substring(baseFolderLen + 1));
@@ -65,7 +65,7 @@ public class FolderSync {
         if (dir.isDirectory()) {
             String[] children = dir.list();
             for (int i = 0; i < children.length; i++) {
-                sendUpdate(sock, ois, oos, new File(dir, children[i]), baseFolderLen, false);
+                sendUpdate(sock, ois, oos, new File(dir, children[i]), baseFolderLen, false, name);
             }
         }
     }
@@ -79,15 +79,15 @@ public class FolderSync {
             if (action.equals(RENAME)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                params = getRenameUpdate( ois, oos);
+                params = getRenameUpdate( ois, oos, name);
             } else if (action.equals(DELETE)) {
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                params = getDeleteUpdate( ois, oos);
+                params = getDeleteUpdate( ois, oos, name);
             } else { // modify
                 oos.writeObject(new Boolean(true)); //ok
                 oos.flush();
-                getModifyUpdate(sock, ois, oos);
+                getModifyUpdate(sock, ois, oos,name);
                 params = new UpdateParams();
                 params.updateType = "MODIFY";
             }
@@ -102,15 +102,13 @@ public class FolderSync {
         }
     }
 
-    private static void getModifyUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+    private static void getModifyUpdate(Socket sock, ObjectInputStream ois, ObjectOutputStream oos, String name) throws Exception {
         Boolean isDone = false;
 
         while (!isDone) {
-            System.out.println("waiting for file from other side: ");
             String path = (String) ois.readObject(); // dir name
-            System.out.println("got file from other side: " + path);
             if (path.equals(DONE)) {
-                System.out.println("modifyUpdate done");
+                System.out.println("all modify done");
                 isDone = true;
                 break;
             }
@@ -127,10 +125,11 @@ public class FolderSync {
                 ois.readObject(); // ok
 
                 if (isDirectory) {
+                    System.out.println(name + ": modify-new folder: " + path );
                     newFile.mkdir();
 
                 } else {
-                    System.out.println("getUpdate-notexist ");
+                    System.out.println(name + ": modify-new file: " + path );
                     Transfer.receiveFile(sock, ois, newFile);
 
                 }
@@ -143,7 +142,7 @@ public class FolderSync {
                 if (recvLastModified > currLastModified) {
                     oos.writeObject(new Boolean(true)); // yes, give me update
                     oos.flush();
-                    System.out.println("getUpdate-modified " + currLastModified + " < " + recvLastModified);
+                    System.out.println(name + ": getUpdate-modified" );
                     Transfer.receiveFile(sock, ois, newFile);
 
                     newFile.setLastModified(recvLastModified);
@@ -158,7 +157,7 @@ public class FolderSync {
         }
     }
 
-    private static UpdateParams getRenameUpdate(ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+    private static UpdateParams getRenameUpdate(ObjectInputStream ois, ObjectOutputStream oos, String name) throws Exception {
         String oldName = (String) ois.readObject();
         File oldFile = new File(System.getProperty("user.dir") + "\\" + oldName);
         oos.writeObject(new Boolean(true)); //ok
@@ -168,8 +167,6 @@ public class FolderSync {
         oos.writeObject(new Boolean(true)); //ok
         oos.flush();
 
-        System.out.println("oldFile: " + oldName);
-        System.out.println("newFile: " + newName);
 
         UpdateParams params = new UpdateParams();
         params.updateType = RENAME;
@@ -178,24 +175,23 @@ public class FolderSync {
 
 
         if (oldFile.renameTo(newFile)) {
-            System.out.println("Rename successful");
+            System.out.println(name + ":Rename successful: from " +oldName + " to " + newName );
 
         } else {
-            System.out.println("Rename failed: from " +oldName + " to " + newName );
+            System.out.println(name + ":Rename failed: from " +oldName + " to " + newName );
         }
 
         return params;
     }
 
-    private static UpdateParams getDeleteUpdate(ObjectInputStream ois, ObjectOutputStream oos) throws Exception {
+    private static UpdateParams getDeleteUpdate(ObjectInputStream ois, ObjectOutputStream oos, String name) throws Exception {
         boolean isDone = false;
         UpdateParams params = new UpdateParams();
 
         while (!isDone) {
             String fileName = (String) ois.readObject();
-            System.out.println("got file to delete from other side: " + fileName);
             if (fileName.equals(DONE)) {
-                System.out.println("all deleting done");
+                System.out.println(name + ":all deleting done");
                 isDone = true;
                 break;
             }
@@ -212,16 +208,19 @@ public class FolderSync {
                     FileUtils.deleteDirectory(fileToDel);
                     params.updateType = DELETE;
                     params.filesToDelete.add(fileName);
+                    System.out.println(name + ":Delete successful: " +fileName);
+
                 } catch (IOException ex) {
-                    System.out.println("Failed to delete the file: " + fileName);
+                    System.out.println(name + ":Delete failed: " +fileName );
                     System.out.println(ex);
                 }
             } else {
                 if (fileToDel.delete()) {
                     params.updateType = DELETE;
                     params.filesToDelete.add(fileName);
+                    System.out.println(name + ":Delete successful: " +fileName);
                 } else {
-                    System.out.println("Failed to delete the file: " + fileName);
+                    System.out.println(name + ":Delete failed: " +fileName );
                 }
             }
         }

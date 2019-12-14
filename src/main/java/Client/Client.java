@@ -142,7 +142,8 @@ public class Client {
                     // Monitor the logDir at listen for change notification.
                     Path pathRenameFrom = null, pathRenameTo = null;
                     WatchKey key;
-                    boolean needToSyncClient = false;
+                    boolean needToSyncClient ;
+                    boolean needToRename;
                     List<String> filesToDelete = new ArrayList<String>();
 
                     while (true) {
@@ -158,6 +159,7 @@ public class Client {
                         }
                         Thread.sleep(50);
                         needToSyncClient = false;
+                        needToRename = false;
                         filesToDelete.clear();
 
                         for (WatchEvent<?> event : key.pollEvents()) {
@@ -185,6 +187,7 @@ public class Client {
                                 System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
                                 pathRenameTo = fileEntry;
                                 sendRenameFile(pathRenameFrom, pathRenameTo);
+                                needToRename = true;
                                 runReadThread();
                             } else {
                                 System.out.println("continue !!!!!");
@@ -194,7 +197,7 @@ public class Client {
                             sendDeleteFile(filesToDelete);
                             runReadThread();
                         }
-                        else if (needToSyncClient) {
+                        else if (needToSyncClient && !needToRename) {
                             syncServer();
                             runReadThread();
                         }
@@ -230,7 +233,7 @@ public class Client {
         readObject=null;
 
         System.out.println("sendUpdate " +baseDirFolder +" start");
-        FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true);
+        FolderSync.sendUpdate(s, ois, oos, baseDirFolder, baseDir.length(), true, "");
         System.out.println("sendUpdate " +baseDirFolder +" end");
 
         oos.writeObject(FolderSync.DONE);

@@ -164,7 +164,7 @@ class ClientHandler implements Runnable {
 
             readObject = null;
 
-            FolderSync.sendUpdate(socket, ois, oos, baseDirFolder, Server.baseDir.length(), true);
+            FolderSync.sendUpdate(socket, ois, oos, baseDirFolder, Server.baseDir.length(), true, name);
 
             oos.writeObject(FolderSync.DONE);
             oos.flush();
