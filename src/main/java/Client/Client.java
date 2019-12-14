@@ -46,8 +46,8 @@ public class Client {
         System.setProperty("user.dir", baseDir);
 
         // getting localhost ip
-//        InetAddress ip = InetAddress.getByName("localhost");
-        String ip = args[1];
+       InetAddress ip = InetAddress.getByName("localhost");
+     //   String ip = args[1];
 
         // establish the connection
         s = new Socket(ip, ServerPort);

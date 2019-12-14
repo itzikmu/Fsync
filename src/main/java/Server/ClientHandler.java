@@ -16,8 +16,9 @@ class ClientHandler implements Runnable {
     Socket socket;
     static volatile int TotalClients;
     static volatile UpdateParams updateParams;
+    private boolean clientDone;
 
-    boolean thisClientUpdated = false;
+    boolean thisClientUpdated;
     private Thread readThread;
 
     private volatile Object readObject;
@@ -29,6 +30,8 @@ class ClientHandler implements Runnable {
         this.name = name;
         this.socket = socket;
         this.updateParams = _updateParams;
+        this.clientDone = false;
+        this.thisClientUpdated = false;
     }
 
     @Override
@@ -40,13 +43,17 @@ class ClientHandler implements Runnable {
             syncClient(true);
 
             readObject = ois.readObject();
-            FolderSync.getUpdate(socket, ois, oos, (String) readObject);
+            UpdateParams updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
+            updateParams.GetParamsUpdate(updateFromClient);
+            System.out.println(name + ": need to update " + (TotalClients - 1) + " clients");
+            updateParams.setNumOfClientsToUpdate(TotalClients - 1);
             readObject = null;
+            thisClientUpdated = true;
 
             runReadThread();
 
 
-            while (true) {
+            while (!clientDone) {
 
                 Thread.sleep(100);
 
@@ -56,7 +63,7 @@ class ClientHandler implements Runnable {
                     while (updateParams.numOfClientsNotUpdated > 0) {
                         ;
                     }
-                    UpdateParams updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
+                    updateFromClient = FolderSync.getUpdate(socket, ois, oos, (String) readObject);
                     updateParams.GetParamsUpdate(updateFromClient);
 
                     readObject = null;
@@ -94,15 +101,23 @@ class ClientHandler implements Runnable {
                 }
 
             }
+        } catch (java.net.SocketException e) {
+            e.printStackTrace();
+            closeHandler();
 
         } catch (Exception e) {
 
             e.printStackTrace();
+            System.out.println(name + "socket is dead");
         }
     }
 
+    private void closeHandler(){
+        clientDone = true;
+        TotalClients--;
+    }
 
-    private void runReadThread() {
+    private void runReadThread() throws java.net.SocketException{
 
         readThread = new Thread() {
             public void run() {
@@ -112,7 +127,7 @@ class ClientHandler implements Runnable {
                     System.out.println(name + ": got message from client " + temp.toString());
                     readObject = temp;
                 } catch (java.net.SocketException e) {
-                    System.out.println(name + ": socket is closed " + e.getMessage());
+                   closeHandler();
 
                 } catch (Exception e) {
                     e.printStackTrace();

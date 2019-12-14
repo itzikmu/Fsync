@@ -12,8 +12,6 @@ public class Server {
     protected static String baseDir;
 //    private static int clientFilesCount = 0;
 
-    static Vector<ClientHandler> ar = new Vector<>();
-
     static int i = 0; // counter for clients
 
     public static void main(String[] args) throws Exception {
@@ -54,8 +52,6 @@ public class Server {
 
             System.out.println("Adding this client to active client list");
 
-            // add this client to active clients list
-            ar.add(mtch);
 
             // start the thread.
             t.start();
@@ -65,13 +61,7 @@ public class Server {
             // i is used for naming only, and can be replaced by any naming scheme
             i++;
         }
-//            while (!isClientDone) {
-//                syncClient();
-//            }
-//            oos.close();
-//            ois.close();
-//            sock.close();
-//        System.out.println("Client disconnected.");
+
 
     }
 }
