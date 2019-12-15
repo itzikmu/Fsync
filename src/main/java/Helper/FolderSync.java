@@ -133,7 +133,7 @@ public class FolderSync {
 
                     }
                     else{
-                        System.out.println(name + ":make new folder" + path+ " failed");
+                        System.out.println(name + ":make new folder " + path+ " failed");
 
                     }
 
@@ -152,7 +152,7 @@ public class FolderSync {
                 if (recvLastModified > currLastModified) {
                     oos.writeObject(new Boolean(true)); // yes, give me update
                     oos.flush();
-                    System.out.println(name + ": getUpdate-modified" );
+                    System.out.println(name + ": getUpdate-modified: "+ path );
                     Transfer.receiveFile(sock, ois, newFile);
 
                     newFile.setLastModified(recvLastModified);

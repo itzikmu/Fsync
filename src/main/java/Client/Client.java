@@ -9,6 +9,7 @@ import name.pachler.nio.file.ext.ExtendedWatchEventModifier;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.rmi.server.ExportException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,11 +27,11 @@ public class Client {
     private static ObjectOutputStream oos;
     private static ObjectInputStream ois;
     private static String baseDir;
-    private static WatchService watcher;
     private  static volatile  Object readObject;
     private  static Thread watcherThread;
     private  static Thread readThread;
     private  static volatile boolean needToGetUpdate = false;
+
 
 
 
@@ -73,13 +74,18 @@ public class Client {
         {
             if(needToGetUpdate && readObject !=null)
             {
-                System.out.println("needToGetUpdate");
+                System.out.println("needToGetUpdate start");
                 FolderSync.getUpdate(s, ois, oos, (String)readObject , "");
                 readObject = null;
                 runReadThread();
 
                 Thread.sleep(100);
+                System.out.println("needToGetUpdate end");
                 needToGetUpdate=false;
+                synchronized(watcherThread) {
+                    watcherThread.notify();
+
+                }
             }
         }
 
@@ -113,6 +119,25 @@ public class Client {
 
     }
 
+     private static void registerWatcher(WatchService watcher, Path folderDir) {
+         try {
+
+             folderDir.register(watcher, new WatchEvent.Kind<?>[]{
+                             ENTRY_RENAME_FROM,
+                             ENTRY_RENAME_TO,
+                             ENTRY_CREATE,
+                             ENTRY_DELETE,
+                             ENTRY_MODIFY
+                     },
+                     new WatchEvent.Modifier<?>[]{
+                             ExtendedWatchEventModifier.ACCURATE,
+                             ExtendedWatchEventModifier.FILE_TREE
+                     }
+             );
+         } catch (Exception e) {
+             e.printStackTrace();
+         }
+     }
 
     private static void runWatcherThread() throws Exception {
 
@@ -120,23 +145,12 @@ public class Client {
             public void run() {
                 try {
                     // Creates a instance of WatchService.
-                    watcher = FileSystems.getDefault().newWatchService();
+                    WatchService watcher = FileSystems.getDefault().newWatchService();
 
                     // Registers the logDir below with a watch service.
                     Path folderDir = Paths.get(baseDir);
-                    folderDir.register(watcher, new WatchEvent.Kind<?>[]{
-                                    ENTRY_RENAME_FROM,
-                                    ENTRY_RENAME_TO,
-                                    ENTRY_CREATE,
-                                    ENTRY_DELETE,
-                                    ENTRY_MODIFY
-                            },
-                            new WatchEvent.Modifier<?>[]{
-                                    ExtendedWatchEventModifier.ACCURATE,
-                                    ExtendedWatchEventModifier.FILE_TREE
-                            }
-                    );
 
+                    registerWatcher(watcher, folderDir);
 
 
                     // Monitor the logDir at listen for change notification.
@@ -145,19 +159,26 @@ public class Client {
                     boolean needToSyncClient ;
                     boolean needToRename;
                     List<String> filesToDelete = new ArrayList<String>();
-
                     while (true) {
                         System.out.println("watchdog is listening to folder " );
                         key  = watcher.take();
                         System.out.println("watchdog found new change" );
 
-                        while (needToGetUpdate) {
+                        if(needToGetUpdate) {
+                            synchronized(watcherThread) {
+                                this.wait();
+                            }
+                            System.out.println("watchdog sleep" );
+                            Thread.sleep(2000);
                             System.out.println("watchdog reset key watcher" );
-                            key.reset();
-                            key  = watcher.take();
-                            System.out.println("watchdog found new change" );
+                             watcher = FileSystems.getDefault().newWatchService();
+                             registerWatcher(watcher, folderDir);
+
+                            continue;
                         }
-                        Thread.sleep(50);
+
+
+                        Thread.sleep(1000);
                         needToSyncClient = false;
                         needToRename = false;
                         filesToDelete.clear();
@@ -172,10 +193,19 @@ public class Client {
                             }
 
 
-                            if (ENTRY_CREATE.equals(kind) ||
-                                    ENTRY_MODIFY.equals(kind)) {
+                            if (ENTRY_CREATE.equals(kind) ||   ENTRY_MODIFY.equals(kind)) {
 
-                                needToSyncClient = true;
+                                File newFile = new File(System.getProperty("user.dir") + "\\" + fileEntry.toString());
+
+                                if(ENTRY_MODIFY.equals(kind) && newFile.isDirectory())
+                                {
+                                    //do nothing
+                                }
+                                else {
+                                    System.out.println("file " + fileEntry.toString() + " was modified in client dir.");
+                                    needToSyncClient = true;
+                                }
+
                             } else if (ENTRY_DELETE.equals(kind)) {
                                 System.out.println("file " + fileEntry.toString() + " was deleted from client dir.");
                                 filesToDelete.add(fileEntry.toString());
@@ -183,12 +213,14 @@ public class Client {
                             } else if (ENTRY_RENAME_FROM.equals(kind)) {
                                 System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
                                 pathRenameFrom = fileEntry;
+
                             } else if (ENTRY_RENAME_TO.equals(kind)) {
                                 System.out.println("file " + fileEntry.toString() + " was renamed on client dir.");
                                 pathRenameTo = fileEntry;
                                 sendRenameFile(pathRenameFrom, pathRenameTo);
                                 needToRename = true;
                                 runReadThread();
+
                             } else {
                                 System.out.println("continue !!!!!");
                             }

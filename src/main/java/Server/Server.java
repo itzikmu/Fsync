@@ -54,6 +54,7 @@ public class Server {
 
 
             // start the thread.
+            Thread.sleep(2000);
             t.start();
             ClientHandler.TotalClients++;
 

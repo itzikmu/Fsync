@@ -208,7 +208,7 @@ class ClientHandler implements Runnable {
 
     private void sendRenameFile(String pathRenameFrom, String pathRenameTo) throws Exception {
 
-        System.out.println(name +": renameFile from" + pathRenameFrom + " to " + pathRenameTo + " start");
+        System.out.println(name +": renameFile from " + pathRenameFrom + " to " + pathRenameTo + " start");
 
         oos.writeObject(FolderSync.RENAME);
         oos.flush();
