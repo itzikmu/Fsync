@@ -14,9 +14,11 @@ public class ClientUI {
     private JTextField dirText;
     private JPanel mainPanel;
     public JPanel clientUIpanel;
-    private JTextField textField1;
+    private JLabel Fsync;
+    private JTextArea textArea1;
 
     private File selectedFolder;
+    private String selectedFolderStr;
 
     public ClientUI() {
         chooseDirButton.addActionListener(new ActionListener() {
@@ -26,7 +28,8 @@ public class ClientUI {
                 fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
                 fc.showOpenDialog(null);
                 selectedFolder = fc.getSelectedFile();
-                dirText.setText(selectedFolder.getAbsoluteFile().toString());
+                selectedFolderStr = selectedFolder.getAbsoluteFile().toString();
+                dirText.setText(selectedFolderStr);
 
             }
         });
@@ -34,7 +37,7 @@ public class ClientUI {
             @Override
             public void actionPerformed(ActionEvent e) {
 
-               // Client.runClient(serverIpText.getText(), Integer.parseInt(serverPortText.getText()), selectedFolder);
+                Client.runClient(selectedFolderStr, serverIpText.getText(), Integer.parseInt(serverPortText.getText()));
             }
         });
     }
@@ -88,8 +91,8 @@ public class ClientUI {
         dirText.setEnabled(false);
         dirText.setText("");
         mainPanel.add(dirText, new com.intellij.uiDesigner.core.GridConstraints(3, 1, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_WEST, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        textField1 = new JTextField();
-        mainPanel.add(textField1, new com.intellij.uiDesigner.core.GridConstraints(5, 0, 1, 2, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_WEST, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, 50), null, 0, false));
+//        textField1 = new JTextField();
+//        mainPanel.add(textField1, new com.intellij.uiDesigner.core.GridConstraints(5, 0, 1, 2, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_WEST, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, 50), null, 0, false));
         final com.intellij.uiDesigner.core.Spacer spacer2 = new com.intellij.uiDesigner.core.Spacer();
         clientUIpanel.add(spacer2, new com.intellij.uiDesigner.core.GridConstraints(0, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_VERTICAL, 1, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
     }

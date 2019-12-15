@@ -6,6 +6,7 @@ import name.pachler.nio.file.*;
 import name.pachler.nio.file.ext.ExtendedWatchEventKind;
 import name.pachler.nio.file.ext.ExtendedWatchEventModifier;
 
+import javax.swing.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -21,7 +22,7 @@ import static name.pachler.nio.file.ext.ExtendedWatchEventKind.ENTRY_RENAME_TO;
 
 
 public class Client {
-    final static int ServerPort = 1234;
+//    final static int ServerPort = 1234;
 
     private static Socket s;
     private static ObjectOutputStream oos;
@@ -38,8 +39,18 @@ public class Client {
     public static void main(String args[]) throws Exception {
         System.out.println("Starting File Sync client!");
 
-        System.out.println("Your baseDir is: " + args[0]);
-        baseDir = args[0];
+        JFrame frame = new JFrame("Fsync");
+        frame.setContentPane(new ClientUI().$$$getRootComponent$$$());
+        frame.setSize(600, 700);
+        frame.setLocation(1000, 400);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setVisible(true);
+    }
+
+
+    public static void runClient(String clientDir, String serverIp, int serverPort) {
+        System.out.println("Your baseDir is: " + clientDir);
+        baseDir = clientDir;
 
         File baseDirFolder = new File(baseDir);
         if (!baseDirFolder.exists()) {
@@ -49,47 +60,50 @@ public class Client {
         System.setProperty("user.dir", baseDir);
 
         // getting localhost ip
-       InetAddress ip = InetAddress.getByName("localhost");
-     //   String ip = args[1];
+       //InetAddress ip = InetAddress.getByName("localhost");
+//       String ip = args[1];
 
-        // establish the connection
-        s = new Socket(ip, ServerPort);
-        oos = new ObjectOutputStream(s.getOutputStream());
-        ois = new ObjectInputStream(s.getInputStream());
-
-
-        // first two way sync
-        ois.readObject();
-        FolderSync.getUpdate(s, ois, oos, "MODIFY" , "");
-        runReadThread();
-        syncServer();
+        try {
+            // establish the connection
+            s = new Socket(serverIp, serverPort);
+            oos = new ObjectOutputStream(s.getOutputStream());
+            ois = new ObjectInputStream(s.getInputStream());
 
 
-        needToGetUpdate = false;
+            // first two way sync
+            ois.readObject();
+            FolderSync.getUpdate(s, ois, oos, "MODIFY", "");
+            runReadThread();
+            syncServer();
 
-        runReadThread();
-        runWatcherThread();
 
-        while(true)
-        {
-            if(needToGetUpdate && readObject !=null)
-            {
-                System.out.println("needToGetUpdate start");
-                FolderSync.getUpdate(s, ois, oos, (String)readObject , "");
-                readObject = null;
-                runReadThread();
+            needToGetUpdate = false;
 
-                Thread.sleep(100);
-                System.out.println("needToGetUpdate end");
-                needToGetUpdate=false;
-                synchronized(watcherThread) {
-                    watcherThread.notify();
+            runReadThread();
+            runWatcherThread();
 
+            while (true) {
+                if (needToGetUpdate && readObject != null) {
+                    System.out.println("needToGetUpdate start");
+                    FolderSync.getUpdate(s, ois, oos, (String) readObject, "");
+                    readObject = null;
+                    runReadThread();
+
+                    Thread.sleep(100);
+                    System.out.println("needToGetUpdate end");
+                    needToGetUpdate = false;
+                    synchronized (watcherThread) {
+                        watcherThread.notify();
+
+                    }
                 }
             }
+        }catch (Exception ex){
+            System.out.println("Something goes wrong...");
+            System.out.println(ex);
         }
-
     }
+
     private static void runReadThread() throws Exception {
 
         readThread = new Thread() {
